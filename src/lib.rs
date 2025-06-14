@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
-pub mod hash;
+use crate::utils::ExpandTilde;
+
 pub mod utils;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -170,11 +171,18 @@ impl Dotman {
                 .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?;
 
             let source = pwd.join(
-                utils::expand_tilde(&link.source)
+                link.source
+                    .expand_tilde_path()
+                    .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?
+                    .canonicalize()
                     .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?,
             );
+
             let target = pwd.join(
-                utils::expand_tilde(&link.target)
+                link.target
+                    .expand_tilde_path()
+                    .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?
+                    .canonicalize()
                     .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?,
             );
 
