@@ -54,11 +54,9 @@ pub fn folder_checksum<P: AsRef<Path>>(dir_path: P) -> io::Result<String> {
 
     for entry in entries {
         let path = entry.path();
-        let relative_path = path.strip_prefix(root_path).map_err(|e| {
-            io::Error::other(
-                format!("Failed to strip prefix: {}", e),
-            )
-        })?;
+        let relative_path = path
+            .strip_prefix(root_path)
+            .map_err(|e| io::Error::other(format!("Failed to strip prefix: {}", e)))?;
 
         if path.is_file() {
             let file_hash_bytes = hash_file_bytes(path)?;

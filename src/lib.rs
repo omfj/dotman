@@ -166,20 +166,22 @@ impl Dotman {
 
     pub fn install(&self) -> Result<(), DotmanError> {
         for link in &self.config.links {
-            let pwd = std::env::current_dir().map_err(|e| {
-                DotmanError::IoError(std::io::Error::other(e))
-            })?;
+            let pwd = std::env::current_dir()
+                .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?;
 
-            let source = pwd.join(utils::expand_tilde(&link.source).map_err(|e| {
-                DotmanError::IoError(std::io::Error::other(e))
-            })?);
-            let target = pwd.join(utils::expand_tilde(&link.target).map_err(|e| {
-                DotmanError::IoError(std::io::Error::other(e))
-            })?);
+            let source = pwd.join(
+                utils::expand_tilde(&link.source)
+                    .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?,
+            );
+            let target = pwd.join(
+                utils::expand_tilde(&link.target)
+                    .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?,
+            );
 
-            let all_conditions_met = link.condition.as_ref().is_none_or(|cond| {
-                cond.os.is_empty() || cond.os.contains(&self.os)
-            });
+            let all_conditions_met = link
+                .condition
+                .as_ref()
+                .is_none_or(|cond| cond.os.is_empty() || cond.os.contains(&self.os));
 
             if !all_conditions_met {
                 continue;
