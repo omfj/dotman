@@ -22,6 +22,23 @@ impl<P: AsRef<Path>> ExpandTilde for P {
     }
 }
 
+pub trait MakeAbsolute {
+    fn make_absolute(&self) -> Result<PathBuf, String>;
+}
+
+impl<P: AsRef<Path>> MakeAbsolute for P {
+    fn make_absolute(&self) -> Result<PathBuf, String> {
+        let path = self.as_ref();
+        if path.is_absolute() {
+            Ok(path.to_path_buf())
+        } else {
+            std::env::current_dir()
+                .map_err(|e| e.to_string())
+                .map(|current_dir| current_dir.join(path))
+        }
+    }
+}
+
 #[allow(clippy::result_unit_err)]
 pub fn get_operating_system() -> Result<OperatingSystem, ()> {
     match std::env::consts::OS {

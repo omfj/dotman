@@ -153,6 +153,6 @@ mod test {
         assert_eq!(config.version, "1");
         assert_eq!(config.links.len(), 2);
         assert_eq!(config.actions.len(), 0);
-        assert_eq!(config.overwrite, false);
+        assert!(!config.overwrite);
     }
 }

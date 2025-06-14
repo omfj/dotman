@@ -26,6 +26,12 @@ enum Command {
         #[clap(short, long, default_value = "dotman.toml")]
         config: PathBuf,
     },
+    /// Show the configuration file in TOML format
+    Show {
+        /// Path to the configuration file
+        #[clap(short, long, default_value = "dotman.toml")]
+        config: PathBuf,
+    },
 }
 
 fn main() {
@@ -56,6 +62,14 @@ fn main() {
             } else {
                 println!("{}", "Configuration file is valid.".green());
             }
+        }
+        Command::Show { config } => {
+            let config = DotmanConfig::try_from(config.as_path()).unwrap_or_else(|err| {
+                eprintln!("{} {}", "Error:".red().bold(), err);
+                std::process::exit(1);
+            });
+
+            println!("{:#?}", config);
         }
     }
 }

@@ -1,7 +1,10 @@
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::DotmanError, utils::ExpandTilde};
+use crate::{
+    error::DotmanError,
+    utils::{ExpandTilde, MakeAbsolute},
+};
 
 pub mod config;
 pub mod error;
@@ -18,18 +21,17 @@ pub enum OperatingSystem {
 }
 
 pub struct Dotman {
-    config: DotmanConfig,
+    pub config: DotmanConfig,
     os: OperatingSystem,
 }
 
 impl Dotman {
     pub fn new(config: DotmanConfig) -> Self {
         let os = utils::get_operating_system().unwrap_or_else(|_| {
-            eprintln!(
+            panic!(
                 "{} Failed to determine the operating system.",
                 "Error:".red().bold()
             );
-            std::process::exit(1);
         });
 
         Dotman { config, os }
@@ -37,24 +39,17 @@ impl Dotman {
 
     pub fn install(&self) -> Result<(), DotmanError> {
         for link in &self.config.links {
-            let pwd = std::env::current_dir()
-                .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?;
+            let source = link
+                .source
+                .expand_tilde_path()?
+                .canonicalize()?
+                .make_absolute()?;
 
-            let source = pwd.join(
-                link.source
-                    .expand_tilde_path()
-                    .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?
-                    .canonicalize()
-                    .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?,
-            );
-
-            let target = pwd.join(
-                link.target
-                    .expand_tilde_path()
-                    .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?
-                    .canonicalize()
-                    .map_err(|e| DotmanError::IoError(std::io::Error::other(e)))?,
-            );
+            let target = link
+                .target
+                .expand_tilde_path()?
+                .canonicalize()?
+                .make_absolute()?;
 
             let all_conditions_met = link
                 .condition
@@ -76,7 +71,15 @@ impl Dotman {
 
             if target.exists() {
                 if self.config.overwrite {
-                    std::fs::remove_file(target.clone()).map_err(DotmanError::IoError)?;
+                    if let Err(e) = std::fs::remove_file(&target) {
+                        eprintln!(
+                            "{} Failed to remove existing target {}: {}",
+                            "Error:".red().bold(),
+                            target.display(),
+                            e
+                        );
+                        return Err(DotmanError::IoError(e));
+                    }
                 } else {
                     eprintln!(
                         "{} {} already exists, skipping. Use --overwrite to force linking.",
