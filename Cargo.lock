@@ -182,6 +182,7 @@ dependencies = [
 name = "dotman"
 version = "0.1.0"
 dependencies = [
+ "anstyle",
  "clap",
  "colored",
  "dirs",
