@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use colored::Colorize;
+
 use crate::OperatingSystem;
 
 pub trait ExpandTilde {
@@ -39,12 +41,18 @@ impl<P: AsRef<Path>> MakeAbsolute for P {
     }
 }
 
-#[allow(clippy::result_unit_err)]
-pub fn get_operating_system() -> Result<OperatingSystem, ()> {
-    match std::env::consts::OS {
-        "linux" => Ok(OperatingSystem::Linux),
-        "macos" => Ok(OperatingSystem::MacOS),
-        "windows" => Ok(OperatingSystem::Windows),
-        _ => Err(()),
+pub fn get_current_os() -> OperatingSystem {
+    if cfg!(target_os = "linux") {
+        OperatingSystem::Linux
+    } else if cfg!(target_os = "macos") {
+        OperatingSystem::MacOS
+    } else if cfg!(target_os = "windows") {
+        OperatingSystem::Windows
+    } else {
+        // Fallback for unknown OS, or panic if not supported
+        panic!(
+            "{} Unsupported operating system for Dotman.",
+            "Error:".red().bold()
+        );
     }
 }

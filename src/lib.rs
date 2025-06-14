@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::DotmanError,
-    utils::{ExpandTilde, MakeAbsolute},
+    utils::{ExpandTilde, MakeAbsolute, get_current_os},
 };
 
 pub mod config;
@@ -22,39 +22,24 @@ pub enum OperatingSystem {
 
 pub struct Dotman {
     pub config: DotmanConfig,
-    os: OperatingSystem,
 }
 
 impl Dotman {
     pub fn new(config: DotmanConfig) -> Self {
-        let os = utils::get_operating_system().unwrap_or_else(|_| {
-            panic!(
-                "{} Failed to determine the operating system.",
-                "Error:".red().bold()
-            );
-        });
-
-        Dotman { config, os }
+        Dotman { config }
     }
 
     pub fn install(&self) -> Result<(), DotmanError> {
-        for link in &self.config.links {
-            let source = link
-                .source
-                .expand_tilde_path()?
-                .canonicalize()?
-                .make_absolute()?;
+        let os = get_current_os();
 
-            let target = link
-                .target
-                .expand_tilde_path()?
-                .canonicalize()?
-                .make_absolute()?;
+        for link in &self.config.links {
+            let source = link.source.expand_tilde_path()?.make_absolute()?;
+            let target = link.target.expand_tilde_path()?.make_absolute()?;
 
             let all_conditions_met = link
                 .condition
                 .as_ref()
-                .is_none_or(|cond| cond.os.is_empty() || cond.os.contains(&self.os));
+                .is_none_or(|cond| cond.os.is_empty() || cond.os.contains(&os));
 
             if !all_conditions_met {
                 continue;
@@ -71,7 +56,17 @@ impl Dotman {
 
             if target.exists() {
                 if self.config.overwrite {
-                    if let Err(e) = std::fs::remove_file(&target) {
+                    if target.is_dir() {
+                        if let Err(e) = std::fs::remove_dir_all(&target) {
+                            eprintln!(
+                                "{} Failed to remove existing target directory {}: {}",
+                                "Error:".red().bold(),
+                                target.display(),
+                                e
+                            );
+                            return Err(DotmanError::IoError(e));
+                        }
+                    } else if let Err(e) = std::fs::remove_file(&target) {
                         eprintln!(
                             "{} Failed to remove existing target {}: {}",
                             "Error:".red().bold(),
@@ -90,21 +85,69 @@ impl Dotman {
                 }
             }
 
-            match self.os {
-                OperatingSystem::Linux | OperatingSystem::MacOS => {
-                    std::os::unix::fs::symlink(source.clone(), target.clone())
+            #[cfg(unix)]
+            {
+                std::os::unix::fs::symlink(source.clone(), target.clone())
+                    .map_err(DotmanError::IoError)?;
+            }
+            #[cfg(windows)]
+            {
+                if source.is_dir() {
+                    std::os::windows::fs::symlink_dir(source.clone(), target.clone())
+                        .map_err(DotmanError::IoError)?;
+                } else {
+                    std::os::windows::fs::symlink_file(source.clone(), target.clone())
                         .map_err(DotmanError::IoError)?;
                 }
-                OperatingSystem::Windows => {
-                    std::fs::hard_link(source.clone(), target.clone())
-                        .map_err(DotmanError::IoError)?;
-                }
-            };
+            }
 
             println!(
                 "{} {} -> {}",
                 "Linked:".green().bold(),
                 source.display(),
+                target.display()
+            );
+        }
+
+        Ok(())
+    }
+
+    pub fn remove(&self) -> Result<(), DotmanError> {
+        for link in &self.config.links {
+            let target = link.target.expand_tilde_path()?.make_absolute()?;
+
+            if !target.exists() {
+                eprintln!(
+                    "{} {} does not exist, skipping.",
+                    "Ignored:".yellow().bold(),
+                    target.display()
+                );
+                continue;
+            }
+
+            if target.is_dir() {
+                if let Err(e) = std::fs::remove_dir_all(&target) {
+                    eprintln!(
+                        "{} Failed to remove directory {}: {}",
+                        "Error:".red().bold(),
+                        target.display(),
+                        e
+                    );
+                    return Err(DotmanError::IoError(e));
+                }
+            } else if let Err(e) = std::fs::remove_file(&target) {
+                eprintln!(
+                    "{} Failed to remove file {}: {}",
+                    "Error:".red().bold(),
+                    target.display(),
+                    e
+                );
+                return Err(DotmanError::IoError(e));
+            }
+
+            println!(
+                "{} {} removed.",
+                "Removed:".green().bold(),
                 target.display()
             );
         }

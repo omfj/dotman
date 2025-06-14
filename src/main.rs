@@ -32,6 +32,12 @@ enum Command {
         #[clap(short, long, default_value = "dotman.toml")]
         config: PathBuf,
     },
+    /// Remove all links created by Dotman
+    Remove {
+        /// Path to the configuration file
+        #[clap(short, long, default_value = "dotman.toml")]
+        config: PathBuf,
+    },
 }
 
 fn main() {
@@ -70,6 +76,21 @@ fn main() {
             });
 
             println!("{:#?}", config);
+        }
+        Command::Remove { config } => {
+            let config = DotmanConfig::try_from(config.as_path()).unwrap_or_else(|err| {
+                eprintln!("{} {}", "Error:".red().bold(), err);
+                std::process::exit(1);
+            });
+
+            let dotman = Dotman::new(config);
+
+            if let Err(e) = dotman.remove() {
+                eprintln!("{} {}", "Error:".red().bold(), e.message());
+                std::process::exit(1);
+            } else {
+                println!("{}", "Removal completed successfully.".green());
+            }
         }
     }
 }
