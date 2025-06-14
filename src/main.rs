@@ -1,6 +1,6 @@
 use clap::Parser;
 use colored::Colorize;
-use dotman::{Config, Dotman};
+use dotman::{Dotman, DotmanConfig};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -33,12 +33,14 @@ fn main() {
 
     match cli.command {
         Command::Install { config, overwrite } => {
-            let config = Config::try_from(config.as_path()).unwrap_or_else(|err| {
-                eprintln!("{} {}", "Error:".red().bold(), err);
-                std::process::exit(1);
-            });
+            let config = DotmanConfig::try_from(config.as_path())
+                .unwrap_or_else(|err| {
+                    eprintln!("{} {}", "Error:".red().bold(), err);
+                    std::process::exit(1);
+                })
+                .with_overwrite(overwrite);
 
-            let dotman = Dotman::new(config, overwrite);
+            let dotman = Dotman::new(config);
 
             if let Err(e) = dotman.install() {
                 eprintln!("{} {}", "Error:".red().bold(), e.message());
@@ -48,7 +50,7 @@ fn main() {
             }
         }
         Command::Validate { config } => {
-            if let Err(e) = Config::try_from(config.as_path()) {
+            if let Err(e) = DotmanConfig::try_from(config.as_path()) {
                 eprintln!("{} {}", "Error:".red().bold(), e);
                 std::process::exit(1);
             } else {

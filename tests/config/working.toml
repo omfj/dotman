@@ -1,0 +1,9 @@
+version = "1"
+
+[[links]]
+source = "foo.txt"
+target = "bar.txt"
+
+[[links]]
+source = "baz.txt"
+target = "qux.txt"
