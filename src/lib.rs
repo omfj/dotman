@@ -151,9 +151,8 @@ impl Dotman {
     pub fn new(config: Config, should_overwrite: bool) -> Self {
         let os = utils::get_operating_system().unwrap_or_else(|_| {
             eprintln!(
-                "{} {}",
-                "Error:".red().bold(),
-                "Failed to determine the operating system."
+                "{} Failed to determine the operating system.",
+                "Error:".red().bold()
             );
             std::process::exit(1);
         });
@@ -168,17 +167,17 @@ impl Dotman {
     pub fn install(&self) -> Result<(), DotmanError> {
         for link in &self.config.links {
             let pwd = std::env::current_dir().map_err(|e| {
-                DotmanError::IoError(std::io::Error::new(std::io::ErrorKind::Other, e))
+                DotmanError::IoError(std::io::Error::other(e))
             })?;
 
             let source = pwd.join(utils::expand_tilde(&link.source).map_err(|e| {
-                DotmanError::IoError(std::io::Error::new(std::io::ErrorKind::Other, e))
+                DotmanError::IoError(std::io::Error::other(e))
             })?);
             let target = pwd.join(utils::expand_tilde(&link.target).map_err(|e| {
-                DotmanError::IoError(std::io::Error::new(std::io::ErrorKind::Other, e))
+                DotmanError::IoError(std::io::Error::other(e))
             })?);
 
-            let all_conditions_met = link.condition.as_ref().map_or(true, |cond| {
+            let all_conditions_met = link.condition.as_ref().is_none_or(|cond| {
                 cond.os.is_empty() || cond.os.contains(&self.os)
             });
 
@@ -197,7 +196,7 @@ impl Dotman {
 
             if target.exists() {
                 if self.should_overwrite {
-                    std::fs::remove_file(target.clone()).map_err(|e| DotmanError::IoError(e))?;
+                    std::fs::remove_file(target.clone()).map_err(DotmanError::IoError)?;
                 } else {
                     eprintln!(
                         "{} {} already exists, skipping. Use --overwrite to force linking.",
@@ -211,11 +210,11 @@ impl Dotman {
             match self.os {
                 OperatingSystem::Linux | OperatingSystem::MacOS => {
                     std::os::unix::fs::symlink(source.clone(), target.clone())
-                        .map_err(|e| DotmanError::IoError(e))?;
+                        .map_err(DotmanError::IoError)?;
                 }
                 OperatingSystem::Windows => {
                     std::fs::hard_link(source.clone(), target.clone())
-                        .map_err(|e| DotmanError::IoError(e))?;
+                        .map_err(DotmanError::IoError)?;
                 }
             };
 

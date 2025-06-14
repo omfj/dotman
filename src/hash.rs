@@ -55,8 +55,7 @@ pub fn folder_checksum<P: AsRef<Path>>(dir_path: P) -> io::Result<String> {
     for entry in entries {
         let path = entry.path();
         let relative_path = path.strip_prefix(root_path).map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
+            io::Error::other(
                 format!("Failed to strip prefix: {}", e),
             )
         })?;

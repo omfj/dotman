@@ -16,6 +16,7 @@ pub fn expand_tilde<P: AsRef<Path>>(path: P) -> Result<PathBuf, String> {
     }
 }
 
+#[allow(clippy::result_unit_err)]
 pub fn get_operating_system() -> Result<OperatingSystem, ()> {
     match std::env::consts::OS {
         "linux" => Ok(OperatingSystem::Linux),
