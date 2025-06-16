@@ -30,5 +30,5 @@ target = "~/.config/starship.toml"
 [[links]]
 source = "hosts/mac/zshrc"
 target = "~/.zshrc"
-condition = { os = ["macos"] }
+condition = { os = ["macos"], hostname = "omfj" }
 ```

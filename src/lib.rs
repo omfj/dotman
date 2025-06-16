@@ -1,3 +1,5 @@
+use std::{path::Path, process::Command};
+
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
@@ -31,15 +33,16 @@ impl Dotman {
 
     pub fn install(&self) -> Result<(), DotmanError> {
         let os = get_current_os();
+        let hostname = get_hostname();
 
         for link in &self.config.links {
             let source = link.source.expand_tilde_path()?.make_absolute()?;
             let target = link.target.expand_tilde_path()?.make_absolute()?;
 
-            let all_conditions_met = link
-                .condition
-                .as_ref()
-                .is_none_or(|cond| cond.os.is_empty() || cond.os.contains(&os));
+            let all_conditions_met = link.condition.as_ref().map_or(true, |cond| {
+                (cond.os.is_empty() || cond.os.contains(&os))
+                    && cond.hostname.as_ref().map_or(true, |h| h == &hostname)
+            });
 
             if !all_conditions_met {
                 continue;
@@ -85,21 +88,7 @@ impl Dotman {
                 }
             }
 
-            #[cfg(unix)]
-            {
-                std::os::unix::fs::symlink(source.clone(), target.clone())
-                    .map_err(DotmanError::IoError)?;
-            }
-            #[cfg(windows)]
-            {
-                if source.is_dir() {
-                    std::os::windows::fs::symlink_dir(source.clone(), target.clone())
-                        .map_err(DotmanError::IoError)?;
-                } else {
-                    std::os::windows::fs::symlink_file(source.clone(), target.clone())
-                        .map_err(DotmanError::IoError)?;
-                }
-            }
+            symlink(source.clone(), target.clone())?;
 
             println!(
                 "{} {} -> {}",
@@ -154,4 +143,26 @@ impl Dotman {
 
         Ok(())
     }
+}
+
+fn symlink<P: AsRef<Path>>(source: P, target: P) -> Result<(), DotmanError> {
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(source, target).map_err(DotmanError::IoError)
+    }
+    #[cfg(windows)]
+    {
+        if source.is_dir() {
+            std::os::windows::fs::symlink_dir(source, target).map_err(DotmanError::IoError)
+        } else {
+            std::os::windows::fs::symlink_file(source, target).map_err(DotmanError::IoError)
+        }
+    }
+}
+
+fn get_hostname() -> String {
+    Command::new("hostname")
+        .output()
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+        .unwrap_or_else(|_| "unknown".to_string())
 }

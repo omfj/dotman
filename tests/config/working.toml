@@ -7,3 +7,4 @@ target = "bar.txt"
 [[links]]
 source = "baz.txt"
 target = "qux.txt"
+condition = { os = ["linux"], hostname = "foo" }

@@ -8,42 +8,28 @@ use serde::{Deserialize, Serialize};
 use crate::OperatingSystem;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Conditions {
+pub struct Condition {
     #[serde(default)]
     pub os: Vec<OperatingSystem>,
+    #[serde(default)]
+    pub hostname: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Link {
     pub target: String,
     pub source: String,
-    pub condition: Option<Conditions>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum GitIfExistsStrategy {
-    Skip,
-    Overwrite,
-    Update,
+    pub condition: Option<Condition>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Action {
-    #[serde(rename = "git_clone")]
-    GitClone {
-        name: String,
-        repo: String,
-        dest: String,
-        condition: Option<Conditions>,
-        if_exists: Option<GitIfExistsStrategy>,
-    },
     #[serde(rename = "shell_command")]
     ShellCommand {
         name: String,
         command: String,
-        condition: Option<Conditions>,
+        condition: Option<Condition>,
     },
 }
 
@@ -153,6 +139,17 @@ mod test {
         assert_eq!(config.version, "1");
         assert_eq!(config.links.len(), 2);
         assert_eq!(config.actions.len(), 0);
+        assert_eq!(config.links[1].condition.as_ref().unwrap().os.len(), 1);
+        assert_eq!(
+            config.links[1]
+                .condition
+                .as_ref()
+                .unwrap()
+                .hostname
+                .as_ref()
+                .unwrap(),
+            "foo"
+        );
         assert!(!config.overwrite);
     }
 }
