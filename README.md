@@ -5,33 +5,21 @@ Manage (symlink) your dotfiles with dotman.
 ## Example
 
 ```toml
+# API version, doesn't work right now, for the future.
 version = "1"
 
+# Always symlink
 [[links]]
 source = "hosts/common/config/git"
 target = "~/.config/git"
 
-[[links]]
-source = "hosts/common/config/ghostty"
-target = "~/.config/ghostty"
-
-[[links]]
-source = "hosts/common/config/helix"
-target = "~/.config/helix"
-
-[[links]]
-source = "hosts/common/config/nvim"
-target = "~/.config/nvim"
-
-[[links]]
-source = "hosts/common/config/starship.toml"
-target = "~/.config/starship.toml"
-
+# Only symlink if all the conditions are met
 [[links]]
 source = "hosts/mac/zshrc"
 target = "~/.zshrc"
 condition = { os = ["macos"], hostname = "omfj" }
 
+# Run some script
 [[actions]]
 type = "shell-command"
 name = "Install Zap for zsh"
