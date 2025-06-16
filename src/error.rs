@@ -2,6 +2,7 @@
 pub enum DotmanError {
     SourceFileNotFound(String),
     IoError(std::io::Error),
+    CommandError(String, String),
 }
 
 impl DotmanError {
@@ -11,6 +12,9 @@ impl DotmanError {
                 format!("Source file not found: {}", source)
             }
             DotmanError::IoError(err) => format!("I/O error: {}", err),
+            DotmanError::CommandError(command, message) => {
+                format!("Command '{}' failed: {}", command, message)
+            }
         }
     }
 }

@@ -25,7 +25,7 @@ pub struct Link {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Action {
-    #[serde(rename = "shell_command")]
+    #[serde(rename = "shell-command")]
     ShellCommand {
         name: String,
         command: String,
@@ -137,8 +137,8 @@ mod test {
         let config = config.unwrap();
 
         assert_eq!(config.version, "1");
+
         assert_eq!(config.links.len(), 2);
-        assert_eq!(config.actions.len(), 0);
         assert_eq!(config.links[1].condition.as_ref().unwrap().os.len(), 1);
         assert_eq!(
             config.links[1]
@@ -150,6 +150,9 @@ mod test {
                 .unwrap(),
             "foo"
         );
+
+        assert_eq!(config.actions.len(), 1);
+
         assert!(!config.overwrite);
     }
 }

@@ -4,6 +4,7 @@ use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    config::Action,
     error::DotmanError,
     utils::{ExpandTilde, MakeAbsolute, get_current_os},
 };
@@ -39,9 +40,9 @@ impl Dotman {
             let source = link.source.expand_tilde_path()?.make_absolute()?;
             let target = link.target.expand_tilde_path()?.make_absolute()?;
 
-            let all_conditions_met = link.condition.as_ref().map_or(true, |cond| {
+            let all_conditions_met = link.condition.as_ref().is_none_or(|cond| {
                 (cond.os.is_empty() || cond.os.contains(&os))
-                    && cond.hostname.as_ref().map_or(true, |h| h == &hostname)
+                    && cond.hostname.as_ref().is_none_or(|h| h == &hostname)
             });
 
             if !all_conditions_met {
@@ -98,6 +99,51 @@ impl Dotman {
             );
         }
 
+        for action in self.config.actions.iter() {
+            match action {
+                Action::ShellCommand {
+                    name,
+                    command,
+                    condition,
+                } => {
+                    let all_conditions_met = condition.as_ref().is_none_or(|cond| {
+                        (cond.os.is_empty() || cond.os.contains(&os))
+                            && cond.hostname.as_ref().is_none_or(|h| h == &hostname)
+                    });
+
+                    if !all_conditions_met {
+                        continue;
+                    }
+
+                    println!("{} Running action: {}", "Action:".blue().bold(), name);
+
+                    let mut command_builder = if cfg!(target_os = "windows") {
+                        let mut cmd = Command::new("cmd");
+                        cmd.arg("/C").arg(command);
+                        cmd
+                    } else {
+                        let mut cmd = Command::new("bash");
+                        cmd.arg("-c").arg(command);
+                        cmd
+                    };
+
+                    let output = command_builder.output()?;
+
+                    if output.status.success() {
+                        println!(
+                            "{} {}",
+                            "Success:".green().bold(),
+                            String::from_utf8_lossy(&output.stdout)
+                        );
+                    } else {
+                        return Err(DotmanError::CommandError(
+                            name.clone(),
+                            String::from_utf8_lossy(&output.stderr).to_string(),
+                        ));
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
