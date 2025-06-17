@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use colored::Colorize;
 
@@ -55,4 +58,26 @@ pub fn get_current_os() -> OperatingSystem {
             "Error:".red().bold()
         );
     }
+}
+
+pub fn symlink<P: AsRef<Path>>(source: P, target: P) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(source, target)
+    }
+    #[cfg(windows)]
+    {
+        if source.is_dir() {
+            std::os::windows::fs::symlink_dir(source, target)
+        } else {
+            std::os::windows::fs::symlink_file(source, target)
+        }
+    }
+}
+
+pub fn get_hostname() -> String {
+    Command::new("hostname")
+        .output()
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+        .unwrap_or_else(|_| "unknown".to_string())
 }

@@ -1,4 +1,4 @@
-use std::{path::Path, process::Command};
+use std::process::Command;
 
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     config::Action,
     error::DotmanError,
-    utils::{ExpandTilde, MakeAbsolute, get_current_os},
+    utils::{ExpandTilde, MakeAbsolute},
 };
 
 pub mod config;
@@ -33,8 +33,8 @@ impl Dotman {
     }
 
     pub fn install(&self) -> Result<(), DotmanError> {
-        let os = get_current_os();
-        let hostname = get_hostname();
+        let os = utils::get_current_os();
+        let hostname = utils::get_hostname();
 
         for link in &self.config.links {
             let source = link.source.expand_tilde_path()?.make_absolute()?;
@@ -89,7 +89,7 @@ impl Dotman {
                 }
             }
 
-            symlink(source.clone(), target.clone())?;
+            utils::symlink(source.clone(), target.clone())?;
 
             println!(
                 "{} {} -> {}",
@@ -189,26 +189,4 @@ impl Dotman {
 
         Ok(())
     }
-}
-
-fn symlink<P: AsRef<Path>>(source: P, target: P) -> Result<(), DotmanError> {
-    #[cfg(unix)]
-    {
-        std::os::unix::fs::symlink(source, target).map_err(DotmanError::IoError)
-    }
-    #[cfg(windows)]
-    {
-        if source.is_dir() {
-            std::os::windows::fs::symlink_dir(source, target).map_err(DotmanError::IoError)
-        } else {
-            std::os::windows::fs::symlink_file(source, target).map_err(DotmanError::IoError)
-        }
-    }
-}
-
-fn get_hostname() -> String {
-    Command::new("hostname")
-        .output()
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
-        .unwrap_or_else(|_| "unknown".to_string())
 }
