@@ -10,4 +10,4 @@ if = { os = ["linux"], hostname = "foo" }
 [[actions]]
 type = "shell-command"
 name = "Install Zap for zsh"
-command = "zsh <(curl -s https://raw.githubusercontent.com/zap-zsh/zap/master/install.zsh) --branch release-v1"
+run = "zsh <(curl -s https://raw.githubusercontent.com/zap-zsh/zap/master/install.zsh) --branch release-v1"

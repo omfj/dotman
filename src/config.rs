@@ -1,5 +1,6 @@
 use std::{
     fmt,
+    ops::Not,
     path::{Path, PathBuf},
 };
 
@@ -7,18 +8,85 @@ use serde::{Deserialize, Serialize};
 
 use crate::OperatingSystem;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Shell {
+    Sh,
+    Bash,
+    Zsh,
+    Fish,
+}
+
+impl Shell {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Shell::Sh => "sh",
+            Shell::Bash => "bash",
+            Shell::Zsh => "zsh",
+            Shell::Fish => "fish",
+        }
+    }
+}
+
+impl Default for Shell {
+    fn default() -> Self {
+        Shell::Sh
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RunCommand {
+    Simple(String),
+    Complex {
+        command: String,
+        shell: Option<Shell>,
+    },
+}
+
+impl RunCommand {
+    pub fn execute(&self) -> Result<std::process::Output, std::io::Error> {
+        match self {
+            RunCommand::Simple(cmd) => std::process::Command::new("sh").arg("-c").arg(cmd).output(),
+            RunCommand::Complex { command, shell } => {
+                let shell_cmd = shell.as_ref().unwrap_or(&Shell::Sh).as_str();
+                std::process::Command::new(shell_cmd)
+                    .arg("-c")
+                    .arg(command)
+                    .output()
+            }
+        }
+    }
+
+    pub fn is_successful(&self) -> bool {
+        match self.execute() {
+            Ok(output) => output.status.success(),
+            Err(_) => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Condition {
     #[serde(default)]
     pub os: Vec<OperatingSystem>,
     #[serde(default)]
     pub hostname: Option<String>,
+    #[serde(default)]
+    pub run: Option<RunCommand>,
 }
 
 impl Condition {
     pub fn is_met(&self, os: &OperatingSystem, hostname: &str) -> bool {
-        (self.os.is_empty() || self.os.contains(os))
-            && (self.hostname.as_ref().is_none() || self.hostname.as_ref().unwrap() == hostname)
+        let os_is_met = self.os.is_empty() || self.os.iter().any(|o| o == os);
+        let hostname_is_met = self.hostname.as_ref().map_or(true, |h| h == hostname);
+
+        let command_is_met = self
+            .run
+            .as_ref()
+            .map_or(true, |run_cmd| run_cmd.is_successful());
+
+        os_is_met && hostname_is_met && command_is_met
     }
 }
 
@@ -38,12 +106,13 @@ pub fn condition_is_met(
     os: &OperatingSystem,
     hostname: &str,
 ) -> bool {
-    if_cond
+    let if_is_met = if_cond
         .as_ref()
-        .map_or(true, |cond| cond.is_met(os, hostname))
-        && if_not_cond
-            .as_ref()
-            .map_or(true, |cond| !cond.is_met(os, hostname))
+        .map_or(true, |cond| cond.is_met(os, hostname));
+    let if_not_is_met = if_not_cond
+        .as_ref()
+        .map_or(true, |cond| cond.is_met(os, hostname).not());
+    if_is_met && if_not_is_met
 }
 
 impl Link {
@@ -58,7 +127,7 @@ pub enum Action {
     #[serde(rename = "shell-command")]
     ShellCommand {
         name: String,
-        command: String,
+        run: RunCommand,
         #[serde(rename = "if")]
         if_cond: Option<Condition>,
         #[serde(rename = "if-not")]
@@ -196,5 +265,140 @@ mod test {
         assert_eq!(config.actions.len(), 1);
 
         assert!(!config.overwrite);
+    }
+
+    #[test]
+    fn test_run_command_simple() {
+        let cmd = RunCommand::Simple("echo test".to_string());
+        let output = cmd.execute().unwrap();
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "test");
+    }
+
+    #[test]
+    fn test_run_command_complex_with_shell() {
+        let cmd = RunCommand::Complex {
+            command: "echo test".to_string(),
+            shell: Some(Shell::Bash),
+        };
+        let output = cmd.execute().unwrap();
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "test");
+    }
+
+    #[test]
+    fn test_run_command_complex_default_shell() {
+        let cmd = RunCommand::Complex {
+            command: "echo test".to_string(),
+            shell: None,
+        };
+        let output = cmd.execute().unwrap();
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "test");
+    }
+
+    #[test]
+    fn test_run_command_is_successful_true() {
+        let cmd = RunCommand::Simple("true".to_string());
+        assert!(cmd.is_successful());
+    }
+
+    #[test]
+    fn test_run_command_is_successful_false() {
+        let cmd = RunCommand::Simple("false".to_string());
+        assert!(!cmd.is_successful());
+    }
+
+    #[test]
+    fn test_condition_os_match() {
+        let condition = Condition {
+            os: vec![OperatingSystem::Linux],
+            hostname: None,
+            run: None,
+        };
+        assert!(condition.is_met(&OperatingSystem::Linux, "test"));
+        assert!(!condition.is_met(&OperatingSystem::MacOS, "test"));
+    }
+
+    #[test]
+    fn test_condition_hostname_match() {
+        let condition = Condition {
+            os: vec![],
+            hostname: Some("test-host".to_string()),
+            run: None,
+        };
+        assert!(condition.is_met(&OperatingSystem::Linux, "test-host"));
+        assert!(!condition.is_met(&OperatingSystem::Linux, "other-host"));
+    }
+
+    #[test]
+    fn test_condition_empty_matches_all() {
+        let condition = Condition::default();
+        assert!(condition.is_met(&OperatingSystem::Linux, "any"));
+        assert!(condition.is_met(&OperatingSystem::MacOS, "any"));
+    }
+
+    #[test]
+    fn test_condition_with_successful_command() {
+        let condition = Condition {
+            os: vec![],
+            hostname: None,
+            run: Some(RunCommand::Simple("true".to_string())),
+        };
+        assert!(condition.is_met(&OperatingSystem::Linux, "test"));
+    }
+
+    #[test]
+    fn test_condition_with_failed_command() {
+        let condition = Condition {
+            os: vec![],
+            hostname: None,
+            run: Some(RunCommand::Simple("false".to_string())),
+        };
+        assert!(!condition.is_met(&OperatingSystem::Linux, "test"));
+    }
+
+    #[test]
+    fn test_condition_all_requirements_met() {
+        let condition = Condition {
+            os: vec![OperatingSystem::Linux],
+            hostname: Some("test-host".to_string()),
+            run: Some(RunCommand::Simple("true".to_string())),
+        };
+        assert!(condition.is_met(&OperatingSystem::Linux, "test-host"));
+        assert!(!condition.is_met(&OperatingSystem::MacOS, "test-host"));
+        assert!(!condition.is_met(&OperatingSystem::Linux, "other-host"));
+    }
+
+    #[test]
+    fn test_action_is_met_with_conditions() {
+        let action = Action::ShellCommand {
+            name: "test".to_string(),
+            run: RunCommand::Simple("echo test".to_string()),
+            if_cond: Some(Condition {
+                os: vec![OperatingSystem::Linux],
+                hostname: None,
+                run: None,
+            }),
+            if_not_cond: None,
+        };
+        assert!(action.is_met(&OperatingSystem::Linux, "test"));
+        assert!(!action.is_met(&OperatingSystem::MacOS, "test"));
+    }
+
+    #[test]
+    fn test_action_is_met_with_if_not_condition() {
+        let action = Action::ShellCommand {
+            name: "test".to_string(),
+            run: RunCommand::Simple("echo test".to_string()),
+            if_cond: None,
+            if_not_cond: Some(Condition {
+                os: vec![OperatingSystem::MacOS],
+                hostname: None,
+                run: None,
+            }),
+        };
+        assert!(action.is_met(&OperatingSystem::Linux, "test"));
+        assert!(!action.is_met(&OperatingSystem::MacOS, "test"));
     }
 }

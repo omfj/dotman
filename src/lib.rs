@@ -1,5 +1,3 @@
-use std::process::Command;
-
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
@@ -41,11 +39,16 @@ impl Dotman {
             let target = link.target.expand_tilde_path()?.make_absolute()?;
 
             if !link.is_met(&os, &hostname) {
+                println!(
+                    "{} {} failed condition check, skipping.",
+                    "Ignored:".yellow().bold(),
+                    source.display()
+                );
                 continue;
             }
 
             if !source.exists() {
-                eprintln!(
+                println!(
                     "{} {} was not found, and will not be linked. Skipping.",
                     "Ignored:".yellow().bold(),
                     source.display()
@@ -57,7 +60,7 @@ impl Dotman {
                 if self.config.overwrite {
                     if target.is_dir() {
                         if let Err(e) = std::fs::remove_dir_all(&target) {
-                            eprintln!(
+                            println!(
                                 "{} Failed to remove existing target directory {}: {}",
                                 "Error:".red().bold(),
                                 target.display(),
@@ -66,7 +69,7 @@ impl Dotman {
                             return Err(DotmanError::IoError(e));
                         }
                     } else if let Err(e) = std::fs::remove_file(&target) {
-                        eprintln!(
+                        println!(
                             "{} Failed to remove existing target {}: {}",
                             "Error:".red().bold(),
                             target.display(),
@@ -75,7 +78,7 @@ impl Dotman {
                         return Err(DotmanError::IoError(e));
                     }
                 } else {
-                    eprintln!(
+                    println!(
                         "{} {} already exists, skipping. Use --overwrite to force linking.",
                         "Warning:".yellow().bold(),
                         target.display()
@@ -98,27 +101,22 @@ impl Dotman {
             match action {
                 Action::ShellCommand {
                     name,
-                    command,
+                    run,
                     if_cond,
                     if_not_cond,
                 } => {
                     if !condition_is_met(if_cond, if_not_cond, &os, &hostname) {
+                        println!(
+                            "{} {} failed condition check, skipping.",
+                            "Ignored:".yellow().bold(),
+                            name
+                        );
                         continue;
                     }
 
                     println!("{} Running action: {}", "Action:".blue().bold(), name);
 
-                    let mut command_builder = if cfg!(target_os = "windows") {
-                        let mut cmd = Command::new("cmd");
-                        cmd.arg("/C").arg(command);
-                        cmd
-                    } else {
-                        let mut cmd = Command::new("bash");
-                        cmd.arg("-c").arg(command);
-                        cmd
-                    };
-
-                    let output = command_builder.output()?;
+                    let output = run.execute()?;
 
                     if output.status.success() {
                         println!(
@@ -143,7 +141,7 @@ impl Dotman {
             let target = link.target.expand_tilde_path()?.make_absolute()?;
 
             if !target.exists() {
-                eprintln!(
+                println!(
                     "{} {} does not exist, skipping.",
                     "Ignored:".yellow().bold(),
                     target.display()
@@ -179,5 +177,151 @@ impl Dotman {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{Action, Condition, DotmanConfig, Link, RunCommand};
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn create_test_config(links: Vec<Link>, actions: Vec<Action>) -> DotmanConfig {
+        DotmanConfig {
+            links,
+            actions,
+            overwrite: false,
+            config_path: String::new(),
+        }
+    }
+
+    #[test]
+    fn test_dotman_install_basic_link() {
+        let temp_dir = TempDir::new().unwrap();
+        let source_file = temp_dir.path().join("source.txt");
+        let target_file = temp_dir.path().join("target.txt");
+
+        fs::write(&source_file, "test content").unwrap();
+
+        let link = Link {
+            source: source_file.to_string_lossy().to_string(),
+            target: target_file.to_string_lossy().to_string(),
+            if_cond: None,
+            if_not_cond: None,
+        };
+
+        let config = create_test_config(vec![link], vec![]);
+        let dotman = Dotman::new(config);
+
+        dotman.install().unwrap();
+
+        assert!(target_file.exists());
+        assert_eq!(fs::read_to_string(&target_file).unwrap(), "test content");
+    }
+
+    #[test]
+    fn test_dotman_install_with_condition_met() {
+        let temp_dir = TempDir::new().unwrap();
+        let source_file = temp_dir.path().join("source.txt");
+        let target_file = temp_dir.path().join("target.txt");
+
+        fs::write(&source_file, "test content").unwrap();
+
+        let link = Link {
+            source: source_file.to_string_lossy().to_string(),
+            target: target_file.to_string_lossy().to_string(),
+            if_cond: Some(Condition {
+                os: vec![],
+                hostname: None,
+                run: Some(RunCommand::Simple("true".to_string())),
+            }),
+            if_not_cond: None,
+        };
+
+        let config = create_test_config(vec![link], vec![]);
+        let dotman = Dotman::new(config);
+
+        dotman.install().unwrap();
+
+        assert!(target_file.exists());
+    }
+
+    #[test]
+    fn test_dotman_install_with_condition_not_met() {
+        let temp_dir = TempDir::new().unwrap();
+        let source_file = temp_dir.path().join("source.txt");
+        let target_file = temp_dir.path().join("target.txt");
+
+        fs::write(&source_file, "test content").unwrap();
+
+        let link = Link {
+            source: source_file.to_string_lossy().to_string(),
+            target: target_file.to_string_lossy().to_string(),
+            if_cond: Some(Condition {
+                os: vec![],
+                hostname: None,
+                run: Some(RunCommand::Simple("false".to_string())),
+            }),
+            if_not_cond: None,
+        };
+
+        let config = create_test_config(vec![link], vec![]);
+        let dotman = Dotman::new(config);
+
+        dotman.install().unwrap();
+
+        assert!(!target_file.exists());
+    }
+
+    #[test]
+    fn test_dotman_remove_existing_link() {
+        let temp_dir = TempDir::new().unwrap();
+        let target_file = temp_dir.path().join("target.txt");
+
+        fs::write(&target_file, "test content").unwrap();
+
+        let link = Link {
+            source: "source.txt".to_string(),
+            target: target_file.to_string_lossy().to_string(),
+            if_cond: None,
+            if_not_cond: None,
+        };
+
+        let config = create_test_config(vec![link], vec![]);
+        let dotman = Dotman::new(config);
+
+        dotman.remove().unwrap();
+
+        assert!(!target_file.exists());
+    }
+
+    #[test]
+    fn test_action_is_met_conditions() {
+        let action_met = Action::ShellCommand {
+            name: "Test action".to_string(),
+            run: RunCommand::Simple("echo test".to_string()),
+            if_cond: Some(Condition {
+                os: vec![],
+                hostname: None,
+                run: Some(RunCommand::Simple("true".to_string())),
+            }),
+            if_not_cond: None,
+        };
+
+        assert!(action_met.is_met(&OperatingSystem::Linux, "test"));
+
+        let action_not_met = Action::ShellCommand {
+            name: "Test action".to_string(),
+            run: RunCommand::Simple("echo test".to_string()),
+            if_cond: Some(Condition {
+                os: vec![],
+                hostname: None,
+                run: Some(RunCommand::Simple("false".to_string())),
+            }),
+            if_not_cond: None,
+        };
+
+        assert!(!action_not_met.is_met(&OperatingSystem::Linux, "test"));
     }
 }

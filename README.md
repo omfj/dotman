@@ -17,11 +17,11 @@ target = "~/.config/git"
 [[links]]
 source = "hosts/mac/zshrc"
 target = "~/.zshrc"
-condition = { os = ["macos"], hostname = "omfj" }
+if = { os = ["macos"], hostname = "omfj" }
 
 # Run some script
 [[actions]]
 type = "shell-command"
 name = "Install Zap for zsh"
-command = "zsh <(curl -s https://raw.githubusercontent.com/zap-zsh/zap/master/install.zsh) --branch release-v1"
+run = "zsh <(curl -s https://raw.githubusercontent.com/zap-zsh/zap/master/install.zsh) --branch release-v1"
 ```
