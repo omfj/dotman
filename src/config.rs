@@ -15,11 +15,41 @@ pub struct Condition {
     pub hostname: Option<String>,
 }
 
+impl Condition {
+    pub fn is_met(&self, os: &OperatingSystem, hostname: &str) -> bool {
+        (self.os.is_empty() || self.os.contains(os))
+            && (self.hostname.as_ref().is_none() || self.hostname.as_ref().unwrap() == hostname)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Link {
     pub target: String,
     pub source: String,
-    pub condition: Option<Condition>,
+    #[serde(rename = "if")]
+    pub if_cond: Option<Condition>,
+    #[serde(rename = "if-not")]
+    pub if_not_cond: Option<Condition>,
+}
+
+pub fn condition_is_met(
+    if_cond: &Option<Condition>,
+    if_not_cond: &Option<Condition>,
+    os: &OperatingSystem,
+    hostname: &str,
+) -> bool {
+    if_cond
+        .as_ref()
+        .map_or(true, |cond| cond.is_met(os, hostname))
+        && if_not_cond
+            .as_ref()
+            .map_or(true, |cond| !cond.is_met(os, hostname))
+}
+
+impl Link {
+    pub fn is_met(&self, os: &OperatingSystem, hostname: &str) -> bool {
+        condition_is_met(&self.if_cond, &self.if_not_cond, os, hostname)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,13 +59,27 @@ pub enum Action {
     ShellCommand {
         name: String,
         command: String,
-        condition: Option<Condition>,
+        #[serde(rename = "if")]
+        if_cond: Option<Condition>,
+        #[serde(rename = "if-not")]
+        if_not_cond: Option<Condition>,
     },
+}
+
+impl Action {
+    pub fn is_met(&self, os: &OperatingSystem, hostname: &str) -> bool {
+        match self {
+            Action::ShellCommand {
+                if_cond,
+                if_not_cond,
+                ..
+            } => condition_is_met(if_cond, if_not_cond, os, hostname),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DotmanConfig {
-    pub version: String,
     #[serde(default = "base_config_path")]
     pub config_path: String,
     #[serde(default)]
@@ -136,13 +180,11 @@ mod test {
 
         let config = config.unwrap();
 
-        assert_eq!(config.version, "1");
-
         assert_eq!(config.links.len(), 2);
-        assert_eq!(config.links[1].condition.as_ref().unwrap().os.len(), 1);
+        assert_eq!(config.links[1].if_cond.as_ref().unwrap().os.len(), 1);
         assert_eq!(
             config.links[1]
-                .condition
+                .if_cond
                 .as_ref()
                 .unwrap()
                 .hostname

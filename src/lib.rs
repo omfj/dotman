@@ -4,7 +4,7 @@ use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::Action,
+    config::{Action, condition_is_met},
     error::DotmanError,
     utils::{ExpandTilde, MakeAbsolute},
 };
@@ -40,12 +40,7 @@ impl Dotman {
             let source = link.source.expand_tilde_path()?.make_absolute()?;
             let target = link.target.expand_tilde_path()?.make_absolute()?;
 
-            let all_conditions_met = link.condition.as_ref().is_none_or(|cond| {
-                (cond.os.is_empty() || cond.os.contains(&os))
-                    && cond.hostname.as_ref().is_none_or(|h| h == &hostname)
-            });
-
-            if !all_conditions_met {
+            if !link.is_met(&os, &hostname) {
                 continue;
             }
 
@@ -104,14 +99,10 @@ impl Dotman {
                 Action::ShellCommand {
                     name,
                     command,
-                    condition,
+                    if_cond,
+                    if_not_cond,
                 } => {
-                    let all_conditions_met = condition.as_ref().is_none_or(|cond| {
-                        (cond.os.is_empty() || cond.os.contains(&os))
-                            && cond.hostname.as_ref().is_none_or(|h| h == &hostname)
-                    });
-
-                    if !all_conditions_met {
+                    if !condition_is_met(if_cond, if_not_cond, &os, &hostname) {
                         continue;
                     }
 

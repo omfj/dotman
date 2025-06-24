@@ -1,5 +1,3 @@
-version = "1"
-
 [[link]]
 source = "foo.txt"
 target = "bar.txt"
