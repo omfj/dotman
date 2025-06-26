@@ -10,7 +10,9 @@ use crate::OperatingSystem;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum Shell {
+    #[default]
     Sh,
     Bash,
     Zsh,
@@ -25,12 +27,6 @@ impl Shell {
             Shell::Zsh => "zsh",
             Shell::Fish => "fish",
         }
-    }
-}
-
-impl Default for Shell {
-    fn default() -> Self {
-        Shell::Sh
     }
 }
 
@@ -79,12 +75,12 @@ pub struct Condition {
 impl Condition {
     pub fn is_met(&self, os: &OperatingSystem, hostname: &str) -> bool {
         let os_is_met = self.os.is_empty() || self.os.iter().any(|o| o == os);
-        let hostname_is_met = self.hostname.as_ref().map_or(true, |h| h == hostname);
+        let hostname_is_met = self.hostname.as_ref().is_none_or(|h| h == hostname);
 
         let command_is_met = self
             .run
             .as_ref()
-            .map_or(true, |run_cmd| run_cmd.is_successful());
+            .is_none_or(|run_cmd| run_cmd.is_successful());
 
         os_is_met && hostname_is_met && command_is_met
     }
@@ -108,10 +104,10 @@ pub fn condition_is_met(
 ) -> bool {
     let if_is_met = if_cond
         .as_ref()
-        .map_or(true, |cond| cond.is_met(os, hostname));
+        .is_none_or(|cond| cond.is_met(os, hostname));
     let if_not_is_met = if_not_cond
         .as_ref()
-        .map_or(true, |cond| cond.is_met(os, hostname).not());
+        .is_none_or(|cond| cond.is_met(os, hostname).not());
     if_is_met && if_not_is_met
 }
 
