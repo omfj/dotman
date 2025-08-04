@@ -5,9 +5,6 @@ Manage (symlink) your dotfiles with dotman.
 ## Example
 
 ```toml
-# API version, doesn't work right now, for the future.
-version = "1"
-
 # Always symlink
 [[links]]
 source = "hosts/common/config/git"
