@@ -3,8 +3,8 @@ all: build install
 build:
     cargo build --release
 
-install:
-    sudo cp target/release/dotman /usr/local/bin/dotman
+install: build
+    sudo cp target/release/dotman $HOME/.local/bin/dotman
 
 uninstall:
     sudo rm /usr/local/bin/dotman

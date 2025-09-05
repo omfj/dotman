@@ -34,7 +34,7 @@ impl Dotman {
         let os = utils::get_current_os();
         let hostname = utils::get_hostname();
 
-        for link in &self.config.links {
+        for link in self.config.get_effective_links() {
             let source = link.source.expand_tilde_path()?.make_absolute()?;
             let target = link.target.expand_tilde_path()?.make_absolute()?;
 
@@ -97,7 +97,7 @@ impl Dotman {
             );
         }
 
-        for action in self.config.actions.iter() {
+        for action in self.config.get_effective_actions() {
             match action {
                 Action::ShellCommand {
                     name,
@@ -137,7 +137,7 @@ impl Dotman {
     }
 
     pub fn remove(&self) -> Result<(), DotmanError> {
-        for link in &self.config.links {
+        for link in self.config.get_effective_links() {
             let target = link.target.expand_tilde_path()?.make_absolute()?;
 
             if !target.exists() {
@@ -178,6 +178,81 @@ impl Dotman {
 
         Ok(())
     }
+
+    pub fn status(&self) -> Result<(), DotmanError> {
+        let os = utils::get_current_os();
+        let hostname = utils::get_hostname();
+
+        println!("{}", "Dotman Status Report".blue().bold());
+        println!();
+
+        for link in self.config.get_effective_links() {
+            let source = link.source.expand_tilde_path()?.make_absolute()?;
+            let target = link.target.expand_tilde_path()?.make_absolute()?;
+
+            print!("Link: {} -> {}", source.display(), target.display());
+
+            if !link.is_met(&os, &hostname) {
+                println!(" {}", "[CONDITION NOT MET]".yellow().bold());
+                continue;
+            }
+
+            if !source.exists() {
+                println!(" {}", "[SOURCE MISSING]".red().bold());
+                continue;
+            }
+
+            if !target.exists() {
+                println!(" {}", "[NOT LINKED]".yellow().bold());
+                continue;
+            }
+
+            if target.is_symlink() {
+                match target.read_link() {
+                    Ok(actual_source) => {
+                        if actual_source == source {
+                            println!(" {}", "[OK]".green().bold());
+                        } else {
+                            println!(
+                                " {} (points to {})",
+                                "[WRONG TARGET]".red().bold(),
+                                actual_source.display()
+                            );
+                        }
+                    }
+                    Err(_) => {
+                        println!(" {}", "[SYMLINK ERROR]".red().bold());
+                    }
+                }
+            } else {
+                println!(" {}", "[EXISTS BUT NOT SYMLINK]".yellow().bold());
+            }
+        }
+
+        if !self.config.get_effective_actions().is_empty() {
+            println!();
+            println!("{}", "Actions:".blue().bold());
+            for action in self.config.get_effective_actions() {
+                match action {
+                    Action::ShellCommand {
+                        name,
+                        if_cond,
+                        if_not_cond,
+                        ..
+                    } => {
+                        print!("Action: {}", name);
+                        if !condition_is_met(if_cond, if_not_cond, &os, &hostname) {
+                            println!(" {}", "[CONDITION NOT MET]".yellow().bold());
+                        } else {
+                            println!(" {}", "[READY TO RUN]".green().bold());
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -193,6 +268,8 @@ mod tests {
             actions,
             overwrite: false,
             config_path: String::new(),
+            profile: std::collections::HashMap::new(),
+            selected_profile: None,
         }
     }
 

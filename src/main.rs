@@ -20,6 +20,9 @@ enum Command {
         /// Override existing links if they already exist
         #[clap(short, long, default_value = "false")]
         overwrite: bool,
+        /// Profile to use (applies global + profile-specific configuration)
+        #[clap(short, long)]
+        profile: Option<String>,
     },
     /// Validate the configuration file
     Validate {
@@ -38,6 +41,18 @@ enum Command {
         /// Path to the configuration file
         #[clap(short, long, default_value = "dotman.toml")]
         config: PathBuf,
+        /// Profile to use (removes global + profile-specific configuration)
+        #[clap(short, long)]
+        profile: Option<String>,
+    },
+    /// Show the status of all configured links
+    Status {
+        /// Path to the configuration file
+        #[clap(short, long, default_value = "dotman.toml")]
+        config: PathBuf,
+        /// Profile to use (shows status for global + profile-specific configuration)
+        #[clap(short, long)]
+        profile: Option<String>,
     },
 }
 
@@ -45,13 +60,18 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Install { config, overwrite } => {
+        Command::Install {
+            config,
+            overwrite,
+            profile,
+        } => {
             let config = DotmanConfig::try_from(config.as_path())
                 .unwrap_or_else(|err| {
                     eprintln!("{} {}", "Error:".red().bold(), err);
                     std::process::exit(1);
                 })
-                .with_overwrite(overwrite);
+                .with_overwrite(overwrite)
+                .with_profile(profile);
 
             let dotman = Dotman::new(config);
 
@@ -78,11 +98,13 @@ fn main() {
 
             println!("{:#?}", config);
         }
-        Command::Remove { config } => {
-            let config = DotmanConfig::try_from(config.as_path()).unwrap_or_else(|err| {
-                eprintln!("{} {}", "Error:".red().bold(), err);
-                std::process::exit(1);
-            });
+        Command::Remove { config, profile } => {
+            let config = DotmanConfig::try_from(config.as_path())
+                .unwrap_or_else(|err| {
+                    eprintln!("{} {}", "Error:".red().bold(), err);
+                    std::process::exit(1);
+                })
+                .with_profile(profile);
 
             let dotman = Dotman::new(config);
 
@@ -91,6 +113,21 @@ fn main() {
                 std::process::exit(1);
             } else {
                 println!("{}", "Removal completed successfully.".green());
+            }
+        }
+        Command::Status { config, profile } => {
+            let config = DotmanConfig::try_from(config.as_path())
+                .unwrap_or_else(|err| {
+                    eprintln!("{} {}", "Error:".red().bold(), err);
+                    std::process::exit(1);
+                })
+                .with_profile(profile);
+
+            let dotman = Dotman::new(config);
+
+            if let Err(e) = dotman.status() {
+                eprintln!("{} {}", "Error:".red().bold(), e.message());
+                std::process::exit(1);
             }
         }
     }
