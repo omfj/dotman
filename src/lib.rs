@@ -104,6 +104,7 @@ impl Dotman {
                     run,
                     if_cond,
                     if_not_cond,
+                    ..
                 } => {
                     if !condition_is_met(if_cond, if_not_cond, &os, &hostname) {
                         println!(
@@ -268,7 +269,6 @@ mod tests {
             actions,
             overwrite: false,
             config_path: String::new(),
-            profile: std::collections::HashMap::new(),
             selected_profile: None,
         }
     }
@@ -286,6 +286,7 @@ mod tests {
             target: target_file.to_string_lossy().to_string(),
             if_cond: None,
             if_not_cond: None,
+            profiles: vec![],
         };
 
         let config = create_test_config(vec![link], vec![]);
@@ -314,6 +315,7 @@ mod tests {
                 run: Some(RunCommand::Simple("true".to_string())),
             }),
             if_not_cond: None,
+            profiles: vec![],
         };
 
         let config = create_test_config(vec![link], vec![]);
@@ -341,6 +343,7 @@ mod tests {
                 run: Some(RunCommand::Simple("false".to_string())),
             }),
             if_not_cond: None,
+            profiles: vec![],
         };
 
         let config = create_test_config(vec![link], vec![]);
@@ -363,6 +366,7 @@ mod tests {
             target: target_file.to_string_lossy().to_string(),
             if_cond: None,
             if_not_cond: None,
+            profiles: vec![],
         };
 
         let config = create_test_config(vec![link], vec![]);
@@ -384,6 +388,7 @@ mod tests {
                 run: Some(RunCommand::Simple("true".to_string())),
             }),
             if_not_cond: None,
+            profiles: vec![],
         };
 
         assert!(action_met.is_met(&OperatingSystem::Linux, "test"));
@@ -397,6 +402,7 @@ mod tests {
                 run: Some(RunCommand::Simple("false".to_string())),
             }),
             if_not_cond: None,
+            profiles: vec![],
         };
 
         assert!(!action_not_met.is_met(&OperatingSystem::Linux, "test"));

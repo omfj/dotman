@@ -94,6 +94,8 @@ pub struct Link {
     pub if_cond: Option<Condition>,
     #[serde(rename = "if-not")]
     pub if_not_cond: Option<Condition>,
+    #[serde(default)]
+    pub profiles: Vec<String>,
 }
 
 pub fn condition_is_met(
@@ -128,6 +130,8 @@ pub enum Action {
         if_cond: Option<Condition>,
         #[serde(rename = "if-not")]
         if_not_cond: Option<Condition>,
+        #[serde(default)]
+        profiles: Vec<String>,
     },
 }
 
@@ -144,14 +148,6 @@ impl Action {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Profile {
-    #[serde(default)]
-    pub links: Vec<Link>,
-    #[serde(default)]
-    pub actions: Vec<Action>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DotmanConfig {
     #[serde(default = "base_config_path")]
     pub config_path: String,
@@ -159,8 +155,6 @@ pub struct DotmanConfig {
     pub links: Vec<Link>,
     #[serde(default)]
     pub actions: Vec<Action>,
-    #[serde(default)]
-    pub profile: std::collections::HashMap<String, Profile>,
     #[serde(default = "default_false")]
     pub overwrite: bool,
     #[serde(skip)]
@@ -179,27 +173,33 @@ impl DotmanConfig {
     }
 
     pub fn get_effective_links(&self) -> Vec<&Link> {
-        let mut links = self.links.iter().collect::<Vec<_>>();
-
-        if let Some(profile_name) = &self.selected_profile
-            && let Some(profile) = self.profile.get(profile_name)
-        {
-            links.extend(profile.links.iter());
-        }
-
-        links
+        self.links
+            .iter()
+            .filter(|link| {
+                link.profiles.is_empty()
+                    || self
+                        .selected_profile
+                        .as_ref()
+                        .map(|p| link.profiles.contains(p))
+                        .unwrap_or(false)
+            })
+            .collect()
     }
 
     pub fn get_effective_actions(&self) -> Vec<&Action> {
-        let mut actions = self.actions.iter().collect::<Vec<_>>();
-
-        if let Some(profile_name) = &self.selected_profile
-            && let Some(profile) = self.profile.get(profile_name)
-        {
-            actions.extend(profile.actions.iter());
-        }
-
-        actions
+        self.actions
+            .iter()
+            .filter(|action| match action {
+                Action::ShellCommand { profiles, .. } => {
+                    profiles.is_empty()
+                        || self
+                            .selected_profile
+                            .as_ref()
+                            .map(|p| profiles.contains(p))
+                            .unwrap_or(false)
+                }
+            })
+            .collect()
     }
 }
 
@@ -418,6 +418,7 @@ mod test {
                 run: None,
             }),
             if_not_cond: None,
+            profiles: vec![],
         };
         assert!(action.is_met(&OperatingSystem::Linux, "test"));
         assert!(!action.is_met(&OperatingSystem::MacOS, "test"));
@@ -434,6 +435,7 @@ mod test {
                 hostname: None,
                 run: None,
             }),
+            profiles: vec![],
         };
         assert!(action.is_met(&OperatingSystem::Linux, "test"));
         assert!(!action.is_met(&OperatingSystem::MacOS, "test"));
