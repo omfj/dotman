@@ -1,27 +1,16 @@
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum DotmanError {
+    #[error("Source file not found: {0}")]
     SourceFileNotFound(String),
-    IoError(std::io::Error),
-    CommandError(String, String),
+    #[error("I/O error: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("Command '{command}' failed: {message}")]
+    CommandError { command: String, message: String },
 }
 
 impl DotmanError {
     pub fn message(&self) -> String {
-        match self {
-            DotmanError::SourceFileNotFound(source) => {
-                format!("Source file not found: {}", source)
-            }
-            DotmanError::IoError(err) => format!("I/O error: {}", err),
-            DotmanError::CommandError(command, message) => {
-                format!("Command '{}' failed: {}", command, message)
-            }
-        }
-    }
-}
-
-impl From<std::io::Error> for DotmanError {
-    fn from(err: std::io::Error) -> Self {
-        DotmanError::IoError(err)
+        self.to_string()
     }
 }
 

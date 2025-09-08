@@ -1,6 +1,5 @@
 use std::{
     fmt,
-    ops::Not,
     path::{Path, PathBuf},
 };
 
@@ -8,9 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::OperatingSystem;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
-#[derive(Default)]
 pub enum Shell {
     #[default]
     Sh,
@@ -45,8 +43,8 @@ impl RunCommand {
         match self {
             RunCommand::Simple(cmd) => std::process::Command::new("sh").arg("-c").arg(cmd).output(),
             RunCommand::Complex { command, shell } => {
-                let shell_cmd = shell.as_ref().unwrap_or(&Shell::Sh).as_str();
-                std::process::Command::new(shell_cmd)
+                let shell = shell.as_ref().unwrap_or(&Shell::Sh).as_str();
+                std::process::Command::new(shell)
                     .arg("-c")
                     .arg(command)
                     .output()
@@ -74,15 +72,11 @@ pub struct Condition {
 
 impl Condition {
     pub fn is_met(&self, os: &OperatingSystem, hostname: &str) -> bool {
-        let os_is_met = self.os.is_empty() || self.os.iter().any(|o| o == os);
-        let hostname_is_met = self.hostname.as_ref().is_none_or(|h| h == hostname);
+        let os_matches = self.os.is_empty() || self.os.contains(os);
+        let hostname_matches = self.hostname.as_ref().is_none_or(|h| h == hostname);
+        let command_succeeds = self.run.as_ref().is_none_or(|cmd| cmd.is_successful());
 
-        let command_is_met = self
-            .run
-            .as_ref()
-            .is_none_or(|run_cmd| run_cmd.is_successful());
-
-        os_is_met && hostname_is_met && command_is_met
+        os_matches && hostname_matches && command_succeeds
     }
 }
 
@@ -104,13 +98,14 @@ pub fn condition_is_met(
     os: &OperatingSystem,
     hostname: &str,
 ) -> bool {
-    let if_is_met = if_cond
+    let if_condition_passes = if_cond
         .as_ref()
         .is_none_or(|cond| cond.is_met(os, hostname));
-    let if_not_is_met = if_not_cond
+    let if_not_condition_passes = if_not_cond
         .as_ref()
-        .is_none_or(|cond| cond.is_met(os, hostname).not());
-    if_is_met && if_not_is_met
+        .is_none_or(|cond| !cond.is_met(os, hostname));
+
+    if_condition_passes && if_not_condition_passes
 }
 
 impl Link {
@@ -175,14 +170,7 @@ impl DotmanConfig {
     pub fn get_effective_links(&self) -> Vec<&Link> {
         self.links
             .iter()
-            .filter(|link| {
-                link.profiles.is_empty()
-                    || self
-                        .selected_profile
-                        .as_ref()
-                        .map(|p| link.profiles.contains(p))
-                        .unwrap_or(false)
-            })
+            .filter(|link| self.profile_matches(&link.profiles))
             .collect()
     }
 
@@ -190,20 +178,21 @@ impl DotmanConfig {
         self.actions
             .iter()
             .filter(|action| match action {
-                Action::ShellCommand { profiles, .. } => {
-                    profiles.is_empty()
-                        || self
-                            .selected_profile
-                            .as_ref()
-                            .map(|p| profiles.contains(p))
-                            .unwrap_or(false)
-                }
+                Action::ShellCommand { profiles, .. } => self.profile_matches(profiles),
             })
             .collect()
     }
+
+    fn profile_matches(&self, profiles: &[String]) -> bool {
+        profiles.is_empty()
+            || self
+                .selected_profile
+                .as_ref()
+                .is_some_and(|selected| profiles.contains(selected))
+    }
 }
 
-fn default_false() -> bool {
+const fn default_false() -> bool {
     false
 }
 

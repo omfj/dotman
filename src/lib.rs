@@ -126,10 +126,10 @@ impl Dotman {
                             String::from_utf8_lossy(&output.stdout)
                         );
                     } else {
-                        return Err(DotmanError::CommandError(
-                            name.clone(),
-                            String::from_utf8_lossy(&output.stderr).to_string(),
-                        ));
+                        return Err(DotmanError::CommandError {
+                            command: name.clone(),
+                            message: String::from_utf8_lossy(&output.stderr).to_string(),
+                        });
                     }
                 }
             }
@@ -187,24 +187,25 @@ impl Dotman {
         println!("{}", "Dotman Status Report".blue().bold());
         println!();
 
+        println!("{}", "Links:".blue().bold());
+        println!();
+
         for link in self.config.get_effective_links() {
             let source = link.source.expand_tilde_path()?.make_absolute()?;
             let target = link.target.expand_tilde_path()?.make_absolute()?;
 
-            print!("Link: {} -> {}", source.display(), target.display());
-
             if !link.is_met(&os, &hostname) {
-                println!(" {}", "[CONDITION NOT MET]".yellow().bold());
+                print!("{}", "[CONDITION NOT MET]".yellow().bold());
                 continue;
             }
 
             if !source.exists() {
-                println!(" {}", "[SOURCE MISSING]".red().bold());
+                print!("{}", "[SOURCE MISSING]".red().bold());
                 continue;
             }
 
             if !target.exists() {
-                println!(" {}", "[NOT LINKED]".yellow().bold());
+                print!("{}", "[NOT LINKED]".yellow().bold());
                 continue;
             }
 
@@ -212,27 +213,32 @@ impl Dotman {
                 match target.read_link() {
                     Ok(actual_source) => {
                         if actual_source == source {
-                            println!(" {}", "[OK]".green().bold());
+                            print!("{}", "[OK]".green().bold());
                         } else {
-                            println!(
-                                " {} (points to {})",
+                            print!(
+                                "{} (points to {})",
                                 "[WRONG TARGET]".red().bold(),
                                 actual_source.display()
                             );
                         }
                     }
                     Err(_) => {
-                        println!(" {}", "[SYMLINK ERROR]".red().bold());
+                        print!("{}", "[SYMLINK ERROR]".red().bold());
                     }
                 }
             } else {
-                println!(" {}", "[EXISTS BUT NOT SYMLINK]".yellow().bold());
+                print!("{}", "[EXISTS BUT NOT SYMLINK]".yellow().bold());
             }
+
+            print!(" ");
+            println!("{} -> {}", source.display(), target.display());
         }
 
         if !self.config.get_effective_actions().is_empty() {
             println!();
             println!("{}", "Actions:".blue().bold());
+            println!();
+
             for action in self.config.get_effective_actions() {
                 match action {
                     Action::ShellCommand {
@@ -241,12 +247,14 @@ impl Dotman {
                         if_not_cond,
                         ..
                     } => {
-                        print!("Action: {}", name);
                         if !condition_is_met(if_cond, if_not_cond, &os, &hostname) {
-                            println!(" {}", "[CONDITION NOT MET]".yellow().bold());
+                            print!("{}", "[CONDITION NOT MET]".yellow().bold());
                         } else {
-                            println!(" {}", "[READY TO RUN]".green().bold());
+                            print!("{}", "[READY TO RUN]".green().bold());
                         }
+
+                        print!(" ");
+                        println!("Action: {}", name);
                     }
                 }
             }

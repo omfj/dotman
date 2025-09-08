@@ -45,18 +45,11 @@ impl<P: AsRef<Path>> MakeAbsolute for P {
 }
 
 pub fn get_current_os() -> OperatingSystem {
-    if cfg!(target_os = "linux") {
-        OperatingSystem::Linux
-    } else if cfg!(target_os = "macos") {
-        OperatingSystem::MacOS
-    } else if cfg!(target_os = "windows") {
-        OperatingSystem::Windows
-    } else {
-        // Fallback for unknown OS, or panic if not supported
-        panic!(
-            "{} Unsupported operating system for Dotman.",
-            "Error:".red().bold()
-        );
+    match std::env::consts::OS {
+        "linux" => OperatingSystem::Linux,
+        "macos" => OperatingSystem::MacOS,
+        "windows" => OperatingSystem::Windows,
+        os => panic!("{} Unsupported operating system '{}' for Dotman.", "Error:".red().bold(), os),
     }
 }
 
@@ -67,7 +60,7 @@ pub fn symlink<P: AsRef<Path>>(source: P, target: P) -> std::io::Result<()> {
     }
     #[cfg(windows)]
     {
-        if source.is_dir() {
+        if source.as_ref().is_dir() {
             std::os::windows::fs::symlink_dir(source, target)
         } else {
             std::os::windows::fs::symlink_file(source, target)
