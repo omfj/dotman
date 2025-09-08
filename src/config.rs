@@ -5,7 +5,13 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::OperatingSystem;
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum OperatingSystem {
+    Linux,
+    MacOS,
+    Windows,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -428,5 +434,36 @@ mod test {
         };
         assert!(action.is_met(&OperatingSystem::Linux, "test"));
         assert!(!action.is_met(&OperatingSystem::MacOS, "test"));
+    }
+
+    #[test]
+    fn test_action_is_met_conditions() {
+        let action_met = Action::ShellCommand {
+            name: "Test action".to_string(),
+            run: RunCommand::Simple("echo test".to_string()),
+            if_cond: Some(Condition {
+                os: vec![],
+                hostname: None,
+                run: Some(RunCommand::Simple("true".to_string())),
+            }),
+            if_not_cond: None,
+            profiles: vec![],
+        };
+
+        assert!(action_met.is_met(&OperatingSystem::Linux, "test"));
+
+        let action_not_met = Action::ShellCommand {
+            name: "Test action".to_string(),
+            run: RunCommand::Simple("echo test".to_string()),
+            if_cond: Some(Condition {
+                os: vec![],
+                hostname: None,
+                run: Some(RunCommand::Simple("false".to_string())),
+            }),
+            if_not_cond: None,
+            profiles: vec![],
+        };
+
+        assert!(!action_not_met.is_met(&OperatingSystem::Linux, "test"));
     }
 }

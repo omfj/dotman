@@ -5,7 +5,7 @@ use std::{
 
 use colored::Colorize;
 
-use crate::OperatingSystem;
+use crate::config::OperatingSystem;
 
 pub trait ExpandTilde {
     /// Expands a path starting with `~` to the user's home directory.
