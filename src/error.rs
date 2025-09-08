@@ -6,6 +6,8 @@ pub enum DotmanError {
     IoError(#[from] std::io::Error),
     #[error("Command '{command}' failed: {message}")]
     CommandError { command: String, message: String },
+    #[error("General error: {0}")]
+    GeneralError(#[from] anyhow::Error),
 }
 
 impl DotmanError {

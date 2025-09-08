@@ -57,75 +57,94 @@ pub enum Command {
 }
 
 impl Cli {
-    pub fn run(self) -> Result<(), Box<dyn std::error::Error>> {
+    /// Runs the command specified in the CLI arguments.
+    pub fn run(self) -> anyhow::Result<()> {
         match self.command {
             Command::Install {
                 config,
                 overwrite,
                 profile,
-            } => {
-                let config = DotmanConfig::try_from(config.as_path())
-                    .map_err(|err| {
-                        eprintln!("{} {}", "Error:".red().bold(), err);
-                        err
-                    })?
-                    .with_overwrite(overwrite)
-                    .with_profile(profile);
+            } => Self::handle_install(config, overwrite, profile),
+            Command::Validate { config } => Self::handle_validate(config),
+            Command::Show { config } => Self::handle_show(config),
+            Command::Remove { config, profile } => Self::handle_remove(config, profile),
+            Command::Status { config, profile } => Self::handle_status(config, profile),
+        }
+    }
 
-                let dotman = Dotman::new(config);
+    fn handle_install(
+        config: PathBuf,
+        overwrite: bool,
+        profile: Option<String>,
+    ) -> anyhow::Result<()> {
+        let config = DotmanConfig::try_from(config.as_path())
+            .map_err(|err| {
+                eprintln!("{} {}", "Error:".red().bold(), err);
+                err
+            })?
+            .with_overwrite(overwrite)
+            .with_profile(profile);
 
-                if let Err(e) = dotman.install() {
-                    eprintln!("{} {}", "Error:".red().bold(), e.message());
-                    return Err(e.into());
-                }
-                println!("{}", "Installation completed successfully.".green());
-            }
-            Command::Validate { config } => {
-                if let Err(e) = DotmanConfig::try_from(config.as_path()) {
-                    eprintln!("{} {}", "Error:".red().bold(), e);
-                    return Err(e.into());
-                }
-                println!("{}", "Configuration file is valid.".green());
-            }
-            Command::Show { config } => {
-                let config = DotmanConfig::try_from(config.as_path()).map_err(|err| {
-                    eprintln!("{} {}", "Error:".red().bold(), err);
-                    err
-                })?;
+        let dotman = Dotman::new(config);
 
-                println!("{:#?}", config);
-            }
-            Command::Remove { config, profile } => {
-                let config = DotmanConfig::try_from(config.as_path())
-                    .map_err(|err| {
-                        eprintln!("{} {}", "Error:".red().bold(), err);
-                        err
-                    })?
-                    .with_profile(profile);
+        if let Err(e) = dotman.install() {
+            eprintln!("{} {}", "Error:".red().bold(), e.message());
+            return Err(e.into());
+        }
+        println!("{}", "Installation completed successfully.".green());
+        Ok(())
+    }
 
-                let dotman = Dotman::new(config);
+    fn handle_validate(config: PathBuf) -> anyhow::Result<()> {
+        if let Err(e) = DotmanConfig::try_from(config.as_path()) {
+            eprintln!("{} {}", "Error:".red().bold(), e);
+            return Err(e.into());
+        }
+        println!("{}", "Configuration file is valid.".green());
+        Ok(())
+    }
 
-                if let Err(e) = dotman.remove() {
-                    eprintln!("{} {}", "Error:".red().bold(), e.message());
-                    return Err(e.into());
-                }
-                println!("{}", "Removal completed successfully.".green());
-            }
-            Command::Status { config, profile } => {
-                let config = DotmanConfig::try_from(config.as_path())
-                    .map_err(|err| {
-                        eprintln!("{} {}", "Error:".red().bold(), err);
-                        err
-                    })?
-                    .with_profile(profile);
+    fn handle_show(config: PathBuf) -> anyhow::Result<()> {
+        let config = DotmanConfig::try_from(config.as_path()).map_err(|err| {
+            eprintln!("{} {}", "Error:".red().bold(), err);
+            err
+        })?;
 
-                let dotman = Dotman::new(config);
+        println!("{:#?}", config);
+        Ok(())
+    }
 
-                if let Err(e) = dotman.status() {
-                    eprintln!("{} {}", "Error:".red().bold(), e.message());
-                    return Err(e.into());
-                }
-            }
+    fn handle_remove(config: PathBuf, profile: Option<String>) -> anyhow::Result<()> {
+        let config = DotmanConfig::try_from(config.as_path())
+            .map_err(|err| {
+                eprintln!("{} {}", "Error:".red().bold(), err);
+                err
+            })?
+            .with_profile(profile);
+
+        let dotman = Dotman::new(config);
+
+        if let Err(e) = dotman.remove() {
+            eprintln!("{} {}", "Error:".red().bold(), e.message());
+            return Err(e.into());
+        }
+        println!("{}", "Removal completed successfully.".green());
+        Ok(())
+    }
+
+    fn handle_status(config: PathBuf, profile: Option<String>) -> anyhow::Result<()> {
+        let config = DotmanConfig::try_from(config.as_path())
+            .map_err(|err| {
+                eprintln!("{} {}", "Error:".red().bold(), err);
+                err
+            })?
+            .with_profile(profile);
+
+        let dotman = Dotman::new(config);
+
+        if let Err(e) = dotman.status() {
+            eprintln!("{} {}", "Error:".red().bold(), e.message());
+            return Err(e.into());
         }
         Ok(())
     }
