@@ -8,6 +8,8 @@ use colored::Colorize;
 use crate::OperatingSystem;
 
 pub trait ExpandTilde {
+    /// Expands a path starting with `~` to the user's home directory.
+    /// If the path does not start with `~`, it is returned as is.
     fn expand_tilde_path(&self) -> Result<PathBuf, String>;
 }
 
@@ -28,6 +30,7 @@ impl<P: AsRef<Path>> ExpandTilde for P {
 }
 
 pub trait MakeAbsolute {
+    /// Converts a relative path to an absolute path based on the current working directory.
     fn make_absolute(&self) -> Result<PathBuf, String>;
 }
 
@@ -44,15 +47,22 @@ impl<P: AsRef<Path>> MakeAbsolute for P {
     }
 }
 
+/// Detects the current operating system and returns an `OperatingSystem` enum.
+/// Panics if the operating system is unsupported / not found.
 pub fn get_current_os() -> OperatingSystem {
     match std::env::consts::OS {
         "linux" => OperatingSystem::Linux,
         "macos" => OperatingSystem::MacOS,
         "windows" => OperatingSystem::Windows,
-        os => panic!("{} Unsupported operating system '{}' for Dotman.", "Error:".red().bold(), os),
+        os => panic!(
+            "{} Unsupported operating system '{}' for Dotman.",
+            "Error:".red().bold(),
+            os
+        ),
     }
 }
 
+/// Wrapper for creating symbolic links that works across different operating systems.
 pub fn symlink<P: AsRef<Path>>(source: P, target: P) -> std::io::Result<()> {
     #[cfg(unix)]
     {
