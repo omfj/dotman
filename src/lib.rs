@@ -66,7 +66,7 @@ impl Dotman {
                             target.display(),
                             e
                         );
-                        return Err(DotmanError::IoError(e));
+                        return Err(e.into());
                     }
                 } else {
                     println!(
@@ -149,7 +149,7 @@ impl Dotman {
                         target.display(),
                         e
                     );
-                    return Err(DotmanError::IoError(e));
+                    return Err(e.into());
                 }
             } else if let Err(e) = std::fs::remove_file(&target) {
                 eprintln!(
@@ -158,7 +158,7 @@ impl Dotman {
                     target.display(),
                     e
                 );
-                return Err(DotmanError::IoError(e));
+                return Err(e.into());
             }
 
             println!(

@@ -71,7 +71,7 @@ impl Cli {
 
     fn handle_install(dotman: Dotman) -> anyhow::Result<()> {
         if let Err(e) = dotman.install() {
-            eprintln!("{} {}", "Error:".red().bold(), e.message());
+            eprintln!("{} {}", "Error:".red().bold(), e);
             return Err(e.into());
         }
         println!("{}", "Installation completed successfully.".green());
@@ -85,7 +85,7 @@ impl Cli {
 
     fn handle_remove(dotman: Dotman) -> anyhow::Result<()> {
         if let Err(e) = dotman.remove() {
-            eprintln!("{} {}", "Error:".red().bold(), e.message());
+            eprintln!("{} {}", "Error:".red().bold(), e);
             return Err(e.into());
         }
         println!("{}", "Removal completed successfully.".green());
@@ -94,7 +94,7 @@ impl Cli {
 
     fn handle_status(dotman: Dotman) -> anyhow::Result<()> {
         if let Err(e) = dotman.status() {
-            eprintln!("{} {}", "Error:".red().bold(), e.message());
+            eprintln!("{} {}", "Error:".red().bold(), e);
             return Err(e.into());
         }
         Ok(())

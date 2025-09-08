@@ -1,8 +1,4 @@
-use std::{
-    fmt,
-    path::{Path, PathBuf},
-};
-
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 const fn default_false() -> bool {
@@ -206,65 +202,22 @@ impl DotmanConfig {
     }
 }
 
-impl std::fmt::Display for DotmanConfig {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match toml::to_string_pretty(self) {
-            Ok(toml_str) => write!(f, "{}", toml_str),
-            Err(_) => write!(f, "Failed to serialize configuration to TOML"),
-        }
-    }
-}
+impl TryFrom<&std::path::Path> for DotmanConfig {
+    type Error = anyhow::Error;
 
-#[derive(Debug)]
-pub enum DotmanConfigError {
-    ConfigFileDoesNotExist(PathBuf),
-    ConfigFileReadError(PathBuf, std::io::Error),
-    ConfigFileParseError(PathBuf, toml::de::Error),
-}
-
-impl fmt::Display for DotmanConfigError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DotmanConfigError::ConfigFileDoesNotExist(path) => {
-                write!(f, "Configuration file does not exist: {}", path.display())
-            }
-            DotmanConfigError::ConfigFileReadError(path, err) => {
-                write!(
-                    f,
-                    "Failed to read configuration file '{}': {}",
-                    path.display(),
-                    err
-                )
-            }
-            DotmanConfigError::ConfigFileParseError(path, err) => {
-                write!(
-                    f,
-                    "Failed to parse configuration file '{}': {}",
-                    path.display(),
-                    err
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for DotmanConfigError {}
-
-impl TryFrom<&Path> for DotmanConfig {
-    type Error = DotmanConfigError;
-
-    fn try_from(path: &Path) -> Result<Self, Self::Error> {
+    fn try_from(path: &std::path::Path) -> anyhow::Result<Self> {
         if !path.exists() {
-            return Err(DotmanConfigError::ConfigFileDoesNotExist(
-                path.to_path_buf(),
+            return Err(anyhow::anyhow!(
+                "Configuration file does not exist: {}",
+                path.display()
             ));
         }
 
         let file_str = std::fs::read_to_string(path)
-            .map_err(|e| DotmanConfigError::ConfigFileReadError(path.to_path_buf(), e))?;
+            .with_context(|| format!("Failed to read configuration file '{}'", path.display()))?;
 
-        let config = toml::from_str(&file_str)
-            .map_err(|e| DotmanConfigError::ConfigFileParseError(path.to_path_buf(), e))?;
+        let config: DotmanConfig = toml::from_str(&file_str)
+            .with_context(|| format!("Failed to parse configuration file '{}'", path.display()))?;
 
         Ok(config)
     }
@@ -273,6 +226,7 @@ impl TryFrom<&Path> for DotmanConfig {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::path::PathBuf;
 
     #[test]
     fn test_parse_config_fail() {
