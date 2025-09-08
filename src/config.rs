@@ -5,6 +5,14 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+const fn default_false() -> bool {
+    false
+}
+
+fn base_config_path() -> String {
+    "dotman.toml".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum OperatingSystem {
@@ -198,12 +206,13 @@ impl DotmanConfig {
     }
 }
 
-const fn default_false() -> bool {
-    false
-}
-
-fn base_config_path() -> String {
-    "dotman.toml".to_string()
+impl std::fmt::Display for DotmanConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match toml::to_string_pretty(self) {
+            Ok(toml_str) => write!(f, "{}", toml_str),
+            Err(_) => write!(f, "Failed to serialize configuration to TOML"),
+        }
+    }
 }
 
 #[derive(Debug)]
