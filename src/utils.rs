@@ -1,8 +1,3 @@
-use std::{
-    path::{Path, PathBuf},
-    process::Command,
-};
-
 use colored::Colorize;
 
 use crate::config::OperatingSystem;
@@ -10,11 +5,11 @@ use crate::config::OperatingSystem;
 pub trait ExpandTilde {
     /// Expands a path starting with `~` to the user's home directory.
     /// If the path does not start with `~`, it is returned as is.
-    fn expand_tilde_path(&self) -> Result<PathBuf, String>;
+    fn expand_tilde_path(&self) -> Result<std::path::PathBuf, String>;
 }
 
-impl<P: AsRef<Path>> ExpandTilde for P {
-    fn expand_tilde_path(&self) -> Result<PathBuf, String> {
+impl<P: AsRef<std::path::Path>> ExpandTilde for P {
+    fn expand_tilde_path(&self) -> Result<std::path::PathBuf, String> {
         let path_str = self.as_ref().to_string_lossy().to_string();
         if path_str.starts_with("~") {
             if let Some(home_dir) = dirs::home_dir() {
@@ -29,13 +24,13 @@ impl<P: AsRef<Path>> ExpandTilde for P {
     }
 }
 
-pub trait MakeAbsolute {
+pub trait Absolute {
     /// Converts a relative path to an absolute path based on the current working directory.
-    fn make_absolute(&self) -> Result<PathBuf, String>;
+    fn absolute(&self) -> Result<std::path::PathBuf, String>;
 }
 
-impl<P: AsRef<Path>> MakeAbsolute for P {
-    fn make_absolute(&self) -> Result<PathBuf, String> {
+impl<P: AsRef<std::path::Path>> Absolute for P {
+    fn absolute(&self) -> Result<std::path::PathBuf, String> {
         let path = self.as_ref();
         if path.is_absolute() {
             Ok(path.to_path_buf())
@@ -63,7 +58,7 @@ pub fn get_current_os() -> OperatingSystem {
 }
 
 /// Wrapper for creating symbolic links that works across different operating systems.
-pub fn symlink<P: AsRef<Path>>(source: P, target: P) -> std::io::Result<()> {
+pub fn symlink<P: AsRef<std::path::Path>>(source: P, target: P) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         std::os::unix::fs::symlink(source, target)
@@ -79,7 +74,7 @@ pub fn symlink<P: AsRef<Path>>(source: P, target: P) -> std::io::Result<()> {
 }
 
 pub fn get_hostname() -> String {
-    Command::new("hostname")
+    std::process::Command::new("hostname")
         .output()
         .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
         .unwrap_or_else(|_| "unknown".to_string())

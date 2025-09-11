@@ -3,7 +3,7 @@ use colored::Colorize;
 use crate::{
     config::{Action, condition_is_met},
     error::DotmanError,
-    utils::{ExpandTilde, MakeAbsolute},
+    utils::{Absolute, ExpandTilde},
 };
 
 pub mod config;
@@ -26,8 +26,8 @@ impl Dotman {
         let hostname = utils::get_hostname();
 
         for link in self.config.get_effective_links() {
-            let source = link.source.expand_tilde_path()?.make_absolute()?;
-            let target = link.target.expand_tilde_path()?.make_absolute()?;
+            let source = link.source.expand_tilde_path()?.absolute()?;
+            let target = link.target.expand_tilde_path()?.absolute()?;
 
             if !link.is_met(&os, &hostname) {
                 println!(
@@ -130,7 +130,7 @@ impl Dotman {
 
     pub fn remove(&self) -> Result<(), DotmanError> {
         for link in self.config.get_effective_links() {
-            let target = link.target.expand_tilde_path()?.make_absolute()?;
+            let target = link.target.expand_tilde_path()?.absolute()?;
 
             if !target.exists() {
                 println!(
@@ -182,8 +182,8 @@ impl Dotman {
         println!();
 
         for link in self.config.get_effective_links() {
-            let source = link.source.expand_tilde_path()?.make_absolute()?;
-            let target = link.target.expand_tilde_path()?.make_absolute()?;
+            let source = link.source.expand_tilde_path()?.absolute()?;
+            let target = link.target.expand_tilde_path()?.absolute()?;
 
             if !link.is_met(&os, &hostname) {
                 print!("{}", "[CONDITION NOT MET]".yellow().bold());

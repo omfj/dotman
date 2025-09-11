@@ -1,6 +1,5 @@
 use clap::Parser;
 use colored::Colorize;
-use std::path::PathBuf;
 
 use dotman::{Dotman, DotmanConfig};
 
@@ -8,7 +7,7 @@ use dotman::{Dotman, DotmanConfig};
 pub struct Cli {
     /// Path to the configuration file
     #[clap(short, long, default_value = "dotman.toml")]
-    pub config: PathBuf,
+    pub config: std::path::PathBuf,
     #[clap(subcommand)]
     pub command: Command,
 }
