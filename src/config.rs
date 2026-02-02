@@ -78,6 +78,16 @@ pub struct Condition {
     pub hostname: Option<String>,
     #[serde(default)]
     pub run: Option<RunCommand>,
+    #[serde(default)]
+    pub file_exists: Vec<String>,
+}
+
+fn expand_tilde(path: &str) -> String {
+    if let Some(stripped) = path.strip_prefix("~/")
+        && let Some(home) = dirs::home_dir() {
+            return format!("{}/{}", home.display(), stripped);
+        }
+    path.to_string()
 }
 
 impl Condition {
@@ -85,8 +95,12 @@ impl Condition {
         let os_matches = self.os.is_empty() || self.os.contains(os);
         let hostname_matches = self.hostname.as_ref().is_none_or(|h| h == hostname);
         let command_succeeds = self.run.as_ref().is_none_or(|cmd| cmd.is_successful());
+        let files_exist = self
+            .file_exists
+            .iter()
+            .all(|path| std::path::Path::new(&expand_tilde(path)).exists());
 
-        os_matches && hostname_matches && command_succeeds
+        os_matches && hostname_matches && command_succeeds && files_exist
     }
 }
 
@@ -317,6 +331,7 @@ mod test {
             os: vec![OperatingSystem::Linux],
             hostname: None,
             run: None,
+            ..Default::default()
         };
         assert!(condition.is_met(&OperatingSystem::Linux, "test"));
         assert!(!condition.is_met(&OperatingSystem::MacOS, "test"));
@@ -328,6 +343,7 @@ mod test {
             os: vec![],
             hostname: Some("test-host".to_string()),
             run: None,
+            ..Default::default()
         };
         assert!(condition.is_met(&OperatingSystem::Linux, "test-host"));
         assert!(!condition.is_met(&OperatingSystem::Linux, "other-host"));
@@ -346,6 +362,7 @@ mod test {
             os: vec![],
             hostname: None,
             run: Some(RunCommand::Simple("true".to_string())),
+            ..Default::default()
         };
         assert!(condition.is_met(&OperatingSystem::Linux, "test"));
     }
@@ -356,6 +373,7 @@ mod test {
             os: vec![],
             hostname: None,
             run: Some(RunCommand::Simple("false".to_string())),
+            ..Default::default()
         };
         assert!(!condition.is_met(&OperatingSystem::Linux, "test"));
     }
@@ -366,10 +384,56 @@ mod test {
             os: vec![OperatingSystem::Linux],
             hostname: Some("test-host".to_string()),
             run: Some(RunCommand::Simple("true".to_string())),
+            ..Default::default()
         };
         assert!(condition.is_met(&OperatingSystem::Linux, "test-host"));
         assert!(!condition.is_met(&OperatingSystem::MacOS, "test-host"));
         assert!(!condition.is_met(&OperatingSystem::Linux, "other-host"));
+    }
+
+    #[test]
+    fn test_condition_file_exists() {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path().to_str().unwrap().to_string();
+
+        // File exists - should match
+        let condition = Condition {
+            file_exists: vec![temp_path.clone()],
+            ..Default::default()
+        };
+        assert!(condition.is_met(&OperatingSystem::Linux, "test"));
+
+        // File doesn't exist - should not match
+        let non_existent = "/tmp/non_existent_file_12345.txt".to_string();
+        let condition = Condition {
+            file_exists: vec![non_existent],
+            ..Default::default()
+        };
+        assert!(!condition.is_met(&OperatingSystem::Linux, "test"));
+    }
+
+    #[test]
+    fn test_condition_file_exists_with_tilde() {
+        let home = dirs::home_dir().unwrap();
+
+        // Create a temp file in home directory to test tilde expansion
+        let temp_file = tempfile::NamedTempFile::new_in(&home).unwrap();
+        let file_name = temp_file.path().file_name().unwrap().to_str().unwrap();
+        let tilde_path = format!("~/{}", file_name);
+
+        // File exists with tilde - should match
+        let condition = Condition {
+            file_exists: vec![tilde_path],
+            ..Default::default()
+        };
+        assert!(condition.is_met(&OperatingSystem::Linux, "test"));
+
+        // Non-existent file with tilde - should not match
+        let condition = Condition {
+            file_exists: vec!["~/non_existent_file_12345.txt".to_string()],
+            ..Default::default()
+        };
+        assert!(!condition.is_met(&OperatingSystem::Linux, "test"));
     }
 
     #[test]
@@ -381,6 +445,7 @@ mod test {
                 os: vec![OperatingSystem::Linux],
                 hostname: None,
                 run: None,
+                ..Default::default()
             }),
             if_not_cond: None,
             profiles: vec![],
@@ -399,6 +464,7 @@ mod test {
                 os: vec![OperatingSystem::MacOS],
                 hostname: None,
                 run: None,
+                ..Default::default()
             }),
             profiles: vec![],
         };
@@ -415,6 +481,7 @@ mod test {
                 os: vec![],
                 hostname: None,
                 run: Some(RunCommand::Simple("true".to_string())),
+                ..Default::default()
             }),
             if_not_cond: None,
             profiles: vec![],
@@ -429,6 +496,7 @@ mod test {
                 os: vec![],
                 hostname: None,
                 run: Some(RunCommand::Simple("false".to_string())),
+                ..Default::default()
             }),
             if_not_cond: None,
             profiles: vec![],

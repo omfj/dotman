@@ -1,7 +1,7 @@
 use colored::Colorize;
 
 use crate::{
-    config::{condition_is_met, Action},
+    config::{Action, condition_is_met},
     error::DotmanError,
     utils::{Absolute, ExpandTilde},
 };
@@ -81,11 +81,11 @@ impl Dotman {
             if self.config.ask {
                 use std::io::{self, Write};
                 print!("Link {} -> {}? [y/N] ", source.display(), target.display());
-                io::stdout().flush().map_err(|e| DotmanError::IoError(e))?;
+                io::stdout().flush().map_err(DotmanError::IoError)?;
                 let mut input = String::new();
                 io::stdin()
                     .read_line(&mut input)
-                    .map_err(|e| DotmanError::IoError(e))?;
+                    .map_err(DotmanError::IoError)?;
                 let input = input.trim().to_lowercase();
                 if input != "y" && input != "yes" {
                     println!("{} Skipping.", "Skipped:".yellow().bold());
@@ -328,6 +328,7 @@ mod tests {
                 os: vec![],
                 hostname: None,
                 run: Some(RunCommand::Simple("true".to_string())),
+                ..Default::default()
             }),
             if_not_cond: None,
             profiles: vec![],
@@ -356,6 +357,7 @@ mod tests {
                 os: vec![],
                 hostname: None,
                 run: Some(RunCommand::Simple("false".to_string())),
+                ..Default::default()
             }),
             if_not_cond: None,
             profiles: vec![],
