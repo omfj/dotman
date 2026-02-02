@@ -16,6 +16,12 @@ source = "hosts/mac/zshrc"
 target = "~/.zshrc"
 if = { os = ["macos"], hostname = "omfj" }
 
+# Hostname can also be a list (OR logic - matches if any hostname matches)
+[[links]]
+source = "hosts/work/vimrc"
+target = "~/.vimrc"
+if = { hostname = ["work-laptop", "work-desktop", "work-server"] }
+
 # Run some script
 [[actions]]
 type = "shell-command"

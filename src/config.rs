@@ -48,6 +48,13 @@ pub enum RunCommand {
     },
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Hostname {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
 impl RunCommand {
     pub fn execute(&self) -> Result<std::process::Output, std::io::Error> {
         match self {
@@ -75,7 +82,7 @@ pub struct Condition {
     #[serde(default)]
     pub os: Vec<OperatingSystem>,
     #[serde(default)]
-    pub hostname: Option<String>,
+    pub hostname: Option<Hostname>,
     #[serde(default)]
     pub run: Option<RunCommand>,
     #[serde(default)]
@@ -93,7 +100,10 @@ fn expand_tilde(path: &str) -> String {
 impl Condition {
     pub fn is_met(&self, os: &OperatingSystem, hostname: &str) -> bool {
         let os_matches = self.os.is_empty() || self.os.contains(os);
-        let hostname_matches = self.hostname.as_ref().is_none_or(|h| h == hostname);
+        let hostname_matches = self.hostname.as_ref().is_none_or(|h| match h {
+            Hostname::Single(h) => h == hostname,
+            Hostname::Multiple(hosts) => hosts.iter().any(|h| h == hostname),
+        });
         let command_succeeds = self.run.as_ref().is_none_or(|cmd| cmd.is_successful());
         let files_exist = self
             .file_exists
@@ -267,16 +277,17 @@ mod test {
 
         assert_eq!(config.links.len(), 2);
         assert_eq!(config.links[1].if_cond.as_ref().unwrap().os.len(), 1);
-        assert_eq!(
-            config.links[1]
-                .if_cond
-                .as_ref()
-                .unwrap()
-                .hostname
-                .as_ref()
-                .unwrap(),
-            "foo"
-        );
+        match config.links[1]
+            .if_cond
+            .as_ref()
+            .unwrap()
+            .hostname
+            .as_ref()
+            .unwrap()
+        {
+            Hostname::Single(h) => assert_eq!(h, "foo"),
+            Hostname::Multiple(_) => panic!("Expected single hostname"),
+        }
 
         assert_eq!(config.actions.len(), 1);
 
@@ -341,11 +352,31 @@ mod test {
     fn test_condition_hostname_match() {
         let condition = Condition {
             os: vec![],
-            hostname: Some("test-host".to_string()),
+            hostname: Some(Hostname::Single("test-host".to_string())),
             run: None,
             ..Default::default()
         };
         assert!(condition.is_met(&OperatingSystem::Linux, "test-host"));
+        assert!(!condition.is_met(&OperatingSystem::Linux, "other-host"));
+    }
+
+    #[test]
+    fn test_condition_hostname_multiple_match() {
+        let condition = Condition {
+            os: vec![],
+            hostname: Some(Hostname::Multiple(vec![
+                "host1".to_string(),
+                "host2".to_string(),
+                "host3".to_string(),
+            ])),
+            run: None,
+            ..Default::default()
+        };
+        // Should match any of the hostnames in the list
+        assert!(condition.is_met(&OperatingSystem::Linux, "host1"));
+        assert!(condition.is_met(&OperatingSystem::Linux, "host2"));
+        assert!(condition.is_met(&OperatingSystem::Linux, "host3"));
+        // Should not match hostnames not in the list
         assert!(!condition.is_met(&OperatingSystem::Linux, "other-host"));
     }
 
@@ -382,7 +413,7 @@ mod test {
     fn test_condition_all_requirements_met() {
         let condition = Condition {
             os: vec![OperatingSystem::Linux],
-            hostname: Some("test-host".to_string()),
+            hostname: Some(Hostname::Single("test-host".to_string())),
             run: Some(RunCommand::Simple("true".to_string())),
             ..Default::default()
         };
