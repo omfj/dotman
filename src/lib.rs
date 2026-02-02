@@ -29,7 +29,7 @@ impl Dotman {
             let source = link.source.expand_tilde_path()?.absolute()?;
             let target = link.target.expand_tilde_path()?.absolute()?;
 
-            if !link.is_met(&os, &hostname) {
+            if !link.is_met(&os, hostname.as_deref()) {
                 println!(
                     "{} {} failed condition check, skipping.",
                     "Ignored:".yellow().bold(),
@@ -112,7 +112,7 @@ impl Dotman {
                     if_not_cond,
                     ..
                 } => {
-                    if !condition_is_met(if_cond, if_not_cond, &os, &hostname) {
+                    if !condition_is_met(if_cond, if_not_cond, &os, hostname.as_deref()) {
                         println!(
                             "{} {} failed condition check, skipping.",
                             "Ignored:".yellow().bold(),
@@ -200,7 +200,7 @@ impl Dotman {
             let source = link.source.expand_tilde_path()?.absolute()?;
             let target = link.target.expand_tilde_path()?.absolute()?;
 
-            if !link.is_met(&os, &hostname) {
+            if !link.is_met(&os, hostname.as_deref()) {
                 print!("{}", "[CONDITION NOT MET]".yellow().bold());
                 continue;
             }
@@ -253,7 +253,7 @@ impl Dotman {
                         if_not_cond,
                         ..
                     } => {
-                        if !condition_is_met(if_cond, if_not_cond, &os, &hostname) {
+                        if !condition_is_met(if_cond, if_not_cond, &os, hostname.as_deref()) {
                             print!("{}", "[CONDITION NOT MET]".yellow().bold());
                         } else {
                             print!("{}", "[READY TO RUN]".green().bold());

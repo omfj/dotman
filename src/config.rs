@@ -91,18 +91,22 @@ pub struct Condition {
 
 fn expand_tilde(path: &str) -> String {
     if let Some(stripped) = path.strip_prefix("~/")
-        && let Some(home) = dirs::home_dir() {
-            return format!("{}/{}", home.display(), stripped);
-        }
+        && let Some(home) = dirs::home_dir()
+    {
+        return format!("{}/{}", home.display(), stripped);
+    }
     path.to_string()
 }
 
 impl Condition {
-    pub fn is_met(&self, os: &OperatingSystem, hostname: &str) -> bool {
+    pub fn is_met(&self, os: &OperatingSystem, hostname: Option<&str>) -> bool {
         let os_matches = self.os.is_empty() || self.os.contains(os);
-        let hostname_matches = self.hostname.as_ref().is_none_or(|h| match h {
-            Hostname::Single(h) => h == hostname,
-            Hostname::Multiple(hosts) => hosts.iter().any(|h| h == hostname),
+        let hostname_matches = self.hostname.as_ref().is_none_or(|h| match hostname {
+            None => false,
+            Some(hostname) => match h {
+                Hostname::Single(h) => h == hostname,
+                Hostname::Multiple(hosts) => hosts.iter().any(|h| h == hostname),
+            },
         });
         let command_succeeds = self.run.as_ref().is_none_or(|cmd| cmd.is_successful());
         let files_exist = self
@@ -130,7 +134,7 @@ pub fn condition_is_met(
     if_cond: &Option<Condition>,
     if_not_cond: &Option<Condition>,
     os: &OperatingSystem,
-    hostname: &str,
+    hostname: Option<&str>,
 ) -> bool {
     let if_condition_passes = if_cond
         .as_ref()
@@ -143,7 +147,7 @@ pub fn condition_is_met(
 }
 
 impl Link {
-    pub fn is_met(&self, os: &OperatingSystem, hostname: &str) -> bool {
+    pub fn is_met(&self, os: &OperatingSystem, hostname: Option<&str>) -> bool {
         condition_is_met(&self.if_cond, &self.if_not_cond, os, hostname)
     }
 }
@@ -165,7 +169,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub fn is_met(&self, os: &OperatingSystem, hostname: &str) -> bool {
+    pub fn is_met(&self, os: &OperatingSystem, hostname: Option<&str>) -> bool {
         match self {
             Action::ShellCommand {
                 if_cond,
@@ -344,8 +348,8 @@ mod test {
             run: None,
             ..Default::default()
         };
-        assert!(condition.is_met(&OperatingSystem::Linux, "test"));
-        assert!(!condition.is_met(&OperatingSystem::MacOS, "test"));
+        assert!(condition.is_met(&OperatingSystem::Linux, Some("test")));
+        assert!(!condition.is_met(&OperatingSystem::MacOS, Some("test")));
     }
 
     #[test]
@@ -356,8 +360,10 @@ mod test {
             run: None,
             ..Default::default()
         };
-        assert!(condition.is_met(&OperatingSystem::Linux, "test-host"));
-        assert!(!condition.is_met(&OperatingSystem::Linux, "other-host"));
+        assert!(condition.is_met(&OperatingSystem::Linux, Some("test-host")));
+        assert!(!condition.is_met(&OperatingSystem::Linux, Some("other-host")));
+        // Should not match when hostname is None
+        assert!(!condition.is_met(&OperatingSystem::Linux, None));
     }
 
     #[test]
@@ -373,18 +379,22 @@ mod test {
             ..Default::default()
         };
         // Should match any of the hostnames in the list
-        assert!(condition.is_met(&OperatingSystem::Linux, "host1"));
-        assert!(condition.is_met(&OperatingSystem::Linux, "host2"));
-        assert!(condition.is_met(&OperatingSystem::Linux, "host3"));
+        assert!(condition.is_met(&OperatingSystem::Linux, Some("host1")));
+        assert!(condition.is_met(&OperatingSystem::Linux, Some("host2")));
+        assert!(condition.is_met(&OperatingSystem::Linux, Some("host3")));
         // Should not match hostnames not in the list
-        assert!(!condition.is_met(&OperatingSystem::Linux, "other-host"));
+        assert!(!condition.is_met(&OperatingSystem::Linux, Some("other-host")));
+        // Should not match when hostname is None
+        assert!(!condition.is_met(&OperatingSystem::Linux, None));
     }
 
     #[test]
     fn test_condition_empty_matches_all() {
         let condition = Condition::default();
-        assert!(condition.is_met(&OperatingSystem::Linux, "any"));
-        assert!(condition.is_met(&OperatingSystem::MacOS, "any"));
+        assert!(condition.is_met(&OperatingSystem::Linux, Some("any")));
+        assert!(condition.is_met(&OperatingSystem::MacOS, Some("any")));
+        // Should also match when hostname is None
+        assert!(condition.is_met(&OperatingSystem::Linux, None));
     }
 
     #[test]
@@ -395,7 +405,7 @@ mod test {
             run: Some(RunCommand::Simple("true".to_string())),
             ..Default::default()
         };
-        assert!(condition.is_met(&OperatingSystem::Linux, "test"));
+        assert!(condition.is_met(&OperatingSystem::Linux, Some("test")));
     }
 
     #[test]
@@ -406,7 +416,7 @@ mod test {
             run: Some(RunCommand::Simple("false".to_string())),
             ..Default::default()
         };
-        assert!(!condition.is_met(&OperatingSystem::Linux, "test"));
+        assert!(!condition.is_met(&OperatingSystem::Linux, Some("test")));
     }
 
     #[test]
@@ -417,9 +427,10 @@ mod test {
             run: Some(RunCommand::Simple("true".to_string())),
             ..Default::default()
         };
-        assert!(condition.is_met(&OperatingSystem::Linux, "test-host"));
-        assert!(!condition.is_met(&OperatingSystem::MacOS, "test-host"));
-        assert!(!condition.is_met(&OperatingSystem::Linux, "other-host"));
+        assert!(condition.is_met(&OperatingSystem::Linux, Some("test-host")));
+        assert!(!condition.is_met(&OperatingSystem::MacOS, Some("test-host")));
+        assert!(!condition.is_met(&OperatingSystem::Linux, Some("other-host")));
+        assert!(!condition.is_met(&OperatingSystem::Linux, None));
     }
 
     #[test]
@@ -432,7 +443,7 @@ mod test {
             file_exists: vec![temp_path.clone()],
             ..Default::default()
         };
-        assert!(condition.is_met(&OperatingSystem::Linux, "test"));
+        assert!(condition.is_met(&OperatingSystem::Linux, Some("test")));
 
         // File doesn't exist - should not match
         let non_existent = "/tmp/non_existent_file_12345.txt".to_string();
@@ -440,7 +451,7 @@ mod test {
             file_exists: vec![non_existent],
             ..Default::default()
         };
-        assert!(!condition.is_met(&OperatingSystem::Linux, "test"));
+        assert!(!condition.is_met(&OperatingSystem::Linux, Some("test")));
     }
 
     #[test]
@@ -457,14 +468,14 @@ mod test {
             file_exists: vec![tilde_path],
             ..Default::default()
         };
-        assert!(condition.is_met(&OperatingSystem::Linux, "test"));
+        assert!(condition.is_met(&OperatingSystem::Linux, Some("test")));
 
         // Non-existent file with tilde - should not match
         let condition = Condition {
             file_exists: vec!["~/non_existent_file_12345.txt".to_string()],
             ..Default::default()
         };
-        assert!(!condition.is_met(&OperatingSystem::Linux, "test"));
+        assert!(!condition.is_met(&OperatingSystem::Linux, Some("test")));
     }
 
     #[test]
@@ -481,8 +492,8 @@ mod test {
             if_not_cond: None,
             profiles: vec![],
         };
-        assert!(action.is_met(&OperatingSystem::Linux, "test"));
-        assert!(!action.is_met(&OperatingSystem::MacOS, "test"));
+        assert!(action.is_met(&OperatingSystem::Linux, Some("test")));
+        assert!(!action.is_met(&OperatingSystem::MacOS, Some("test")));
     }
 
     #[test]
@@ -499,8 +510,8 @@ mod test {
             }),
             profiles: vec![],
         };
-        assert!(action.is_met(&OperatingSystem::Linux, "test"));
-        assert!(!action.is_met(&OperatingSystem::MacOS, "test"));
+        assert!(action.is_met(&OperatingSystem::Linux, Some("test")));
+        assert!(!action.is_met(&OperatingSystem::MacOS, Some("test")));
     }
 
     #[test]
@@ -518,7 +529,7 @@ mod test {
             profiles: vec![],
         };
 
-        assert!(action_met.is_met(&OperatingSystem::Linux, "test"));
+        assert!(action_met.is_met(&OperatingSystem::Linux, Some("test")));
 
         let action_not_met = Action::ShellCommand {
             name: "Test action".to_string(),
@@ -533,6 +544,6 @@ mod test {
             profiles: vec![],
         };
 
-        assert!(!action_not_met.is_met(&OperatingSystem::Linux, "test"));
+        assert!(!action_not_met.is_met(&OperatingSystem::Linux, Some("test")));
     }
 }

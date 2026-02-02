@@ -73,9 +73,27 @@ pub fn symlink<P: AsRef<std::path::Path>>(source: P, target: P) -> std::io::Resu
     }
 }
 
-pub fn get_hostname() -> String {
-    std::process::Command::new("hostname")
+pub fn get_hostname() -> Option<String> {
+    // Try to get hostname from the hostname command
+    let from_command = std::process::Command::new("hostname")
         .output()
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
-        .unwrap_or_else(|_| "unknown".to_string())
+        .ok()
+        .and_then(|output| {
+            let hostname = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if hostname.is_empty() {
+                None
+            } else {
+                Some(hostname)
+            }
+        });
+
+    if from_command.is_some() {
+        return from_command;
+    }
+
+    // Fallback: try to read from /etc/hostname
+    std::fs::read_to_string("/etc/hostname")
+        .ok()
+        .map(|content| content.trim().to_string())
+        .filter(|hostname| !hostname.is_empty())
 }
