@@ -19,6 +19,9 @@ pub enum Command {
         /// Override existing links if they already exist
         #[clap(short, long, default_value = "false")]
         overwrite: bool,
+        /// Ask before creating each symlink
+        #[clap(short, long, default_value = "false")]
+        ask: bool,
         /// Profile to use (applies global + profile-specific configuration)
         #[clap(short, long)]
         profile: Option<String>,
@@ -49,8 +52,15 @@ impl Cli {
         })?;
 
         match self.command {
-            Command::Install { overwrite, profile } => {
-                let dotman_config = config.with_overwrite(overwrite).with_profile(profile);
+            Command::Install {
+                overwrite,
+                ask,
+                profile,
+            } => {
+                let dotman_config = config
+                    .with_overwrite(overwrite)
+                    .with_ask(ask)
+                    .with_profile(profile);
                 let dotman = Dotman::new(dotman_config);
                 Self::handle_install(dotman)
             }

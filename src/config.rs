@@ -163,12 +163,19 @@ pub struct DotmanConfig {
     #[serde(default = "default_false")]
     pub overwrite: bool,
     #[serde(skip)]
+    pub ask: bool,
+    #[serde(skip)]
     pub selected_profile: Option<String>,
 }
 
 impl DotmanConfig {
     pub fn with_overwrite(mut self, overwrite: bool) -> Self {
         self.overwrite = overwrite;
+        self
+    }
+
+    pub fn with_ask(mut self, ask: bool) -> Self {
+        self.ask = ask;
         self
     }
 

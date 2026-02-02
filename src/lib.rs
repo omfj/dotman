@@ -1,7 +1,7 @@
 use colored::Colorize;
 
 use crate::{
-    config::{Action, condition_is_met},
+    config::{condition_is_met, Action},
     error::DotmanError,
     utils::{Absolute, ExpandTilde},
 };
@@ -74,6 +74,21 @@ impl Dotman {
                         "Warning:".yellow().bold(),
                         target.display()
                     );
+                    continue;
+                }
+            }
+
+            if self.config.ask {
+                use std::io::{self, Write};
+                print!("Link {} -> {}? [y/N] ", source.display(), target.display());
+                io::stdout().flush().map_err(|e| DotmanError::IoError(e))?;
+                let mut input = String::new();
+                io::stdin()
+                    .read_line(&mut input)
+                    .map_err(|e| DotmanError::IoError(e))?;
+                let input = input.trim().to_lowercase();
+                if input != "y" && input != "yes" {
+                    println!("{} Skipping.", "Skipped:".yellow().bold());
                     continue;
                 }
             }
@@ -267,6 +282,7 @@ mod tests {
             links,
             actions,
             overwrite: false,
+            ask: false,
             config_path: String::new(),
             selected_profile: None,
         }
